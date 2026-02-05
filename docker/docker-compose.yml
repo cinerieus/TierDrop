@@ -1,0 +1,21 @@
+services:
+  tierdrop:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tierdrop
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "8000:8000"
+      - "9993:9993/udp"
+    volumes:
+      - zerotier-data:/var/lib/zerotier-one
+      - tierdrop-data:/root/.local/share/tierdrop
+    restart: unless-stopped
+
+volumes:
+  zerotier-data:
+  tierdrop-data:

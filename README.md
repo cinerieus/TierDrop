@@ -142,6 +142,49 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now tierdrop
 ```
 
+### Docker
+
+The Docker image includes ZeroTier One, so everything runs in a single container.
+
+**Using Docker Compose (recommended):**
+
+```bash
+cd docker
+docker compose up -d
+```
+
+**Using Docker directly:**
+
+```bash
+# Build (from project root)
+docker build -t tierdrop -f docker/Dockerfile .
+
+# Run
+docker run -d \
+  --name tierdrop \
+  --cap-add NET_ADMIN \
+  --device /dev/net/tun \
+  -p 8000:8000 \
+  -p 9993:9993/udp \
+  -v zerotier-data:/var/lib/zerotier-one \
+  -v tierdrop-data:/root/.local/share/tierdrop \
+  tierdrop
+```
+
+**Get the ZeroTier auth token from logs:**
+
+```bash
+docker logs tierdrop
+```
+
+The token is printed on startup — use it in the TierDrop setup wizard at `http://localhost:8000`.
+
+**Notes:**
+- `--cap-add NET_ADMIN` and `--device /dev/net/tun` are required for ZeroTier networking
+- Port `8000` is the TierDrop web UI
+- Port `9993/udp` is for ZeroTier peer connections
+- Volumes persist your ZeroTier identity and TierDrop config
+
 ## Technical Details
 
 ### Stack
