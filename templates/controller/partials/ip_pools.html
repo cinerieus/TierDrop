@@ -1,0 +1,87 @@
+<div class="card-header">
+    <h3>IP Assignment &amp; Routes</h3>
+</div>
+
+<h4 class="subsection-title">IP Assignment Pools</h4>
+{% if pools.is_empty() %}
+<p class="text-secondary mb-4">No IP pools configured. Add one to enable auto-assignment.</p>
+{% else %}
+<div class="table-wrap mb-4">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:200px">Range Start</th>
+                <th style="width:200px">Range End</th>
+                <th class="col-action"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pool in pools.iter().enumerate() %}
+            <tr>
+                <td class="mono">{{ pool.1.display_start() }}</td>
+                <td class="mono">{{ pool.1.display_end() }}</td>
+                <td class="col-action">
+                    <form hx-post="/controller/{{ nwid }}/pools/remove"
+                          hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
+                        <input type="hidden" name="index" value="{{ pool.0 }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<form class="inline-form mb-4"
+      hx-post="/controller/{{ nwid }}/pools"
+      hx-target="#ip-assignment" hx-swap="innerHTML">
+    <input type="text" name="range_start" class="form-input mono"
+           placeholder="Range start (e.g. 10.0.0.1)" required style="max-width:200px;">
+    <input type="text" name="range_end" class="form-input mono"
+           placeholder="Range end (e.g. 10.0.0.254)" required style="max-width:200px;">
+    <button type="submit" class="btn btn-primary btn-sm">Add Pool</button>
+</form>
+
+<h4 class="subsection-title">Managed Routes</h4>
+{% if routes.is_empty() %}
+<p class="text-secondary mb-4">No managed routes configured.</p>
+{% else %}
+<div class="table-wrap mb-4">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:200px">Target</th>
+                <th style="width:200px">Via</th>
+                <th class="col-action"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for route in routes.iter().enumerate() %}
+            <tr>
+                <td class="mono">{{ route.1.display_target() }}</td>
+                <td class="mono">{{ route.1.display_via() }}</td>
+                <td class="col-action">
+                    <form hx-post="/controller/{{ nwid }}/routes/remove"
+                          hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
+                        <input type="hidden" name="index" value="{{ route.0 }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<form class="inline-form"
+      hx-post="/controller/{{ nwid }}/routes"
+      hx-target="#ip-assignment" hx-swap="innerHTML">
+    <input type="text" name="target" class="form-input mono"
+           placeholder="Target (e.g. 10.0.0.0/24)" required style="max-width:200px;">
+    <input type="text" name="via" class="form-input mono"
+           placeholder="Via (optional)" style="max-width:200px;">
+    <button type="submit" class="btn btn-primary btn-sm">Add Route</button>
+</form>

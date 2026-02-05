@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}TierDrop - {{ network.display_name() }}{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">&larr; Dashboard</a>
+
+<div class="page-header">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2>{{ network.display_name() }}</h2>
+            <p class="mono">{{ network.display_id() }}</p>
+        </div>
+        <div class="flex gap-2">
+            <span class="badge {{ network.type_class() }}">{{ network.display_type() }}</span>
+            <button
+                class="btn btn-danger btn-sm"
+                hx-delete="/controller/{{ network.display_id() }}"
+                hx-confirm="Delete network {{ network.display_id() }}? This cannot be undone."
+                hx-target="body"
+            >
+                Delete Network
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Section -->
+<div class="card" id="network-settings" style="position:relative">
+    {% include "controller/partials/network_settings.html" %}
+</div>
+
+<!-- IP Assignment Section -->
+<div class="card" id="ip-assignment">
+    {% include "controller/partials/ip_pools.html" %}
+</div>
+
+<!-- Members Section -->
+<div class="card">
+    <div id="member-list"
+         hx-get="/controller/partials/{{ network.display_id() }}/members"
+         hx-trigger="sse:ctrl-members-changed, member-updated from:body, every 5s"
+         hx-swap="innerHTML">
+        {% include "controller/partials/member_list.html" %}
+    </div>
+</div>
+{% endblock %}

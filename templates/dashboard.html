@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}TierDrop{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2>Dashboard</h2>
+            <p>Network controller overview</p>
+        </div>
+        <form hx-post="/controller/create" hx-target="body">
+            <button type="submit" class="btn btn-primary">
+                + Create Network
+                <span class="spinner htmx-indicator"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<div id="dashboard-stats"
+     hx-get="/partials/dashboard"
+     hx-trigger="sse:ctrl-networks-changed, sse:ctrl-members-changed, sse:status-changed, every 5s"
+     hx-swap="innerHTML">
+    {% include "partials/dashboard_stats.html" %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Networks</h3>
+    </div>
+    <div id="dashboard-networks"
+         hx-get="/partials/networks"
+         hx-trigger="sse:ctrl-networks-changed, sse:ctrl-members-changed, every 5s"
+         hx-swap="innerHTML">
+        {% include "partials/dashboard_networks.html" %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+<div class="card-header">
+    <h3>Members ({{ member_count }})</h3>
+</div>
+{% if rows.is_empty() %}
+<div class="empty-state">
+    <div class="icon">&#9734;</div>
+    <h3>No Members</h3>
+    <p>Members will appear here when nodes join this network, or add one manually below.</p>
+</div>
+{% else %}
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Node ID</th>
+                <th>Name</th>
+                <th>Authorized</th>
+                <th>IP Assignments</th>
+                <th>Version</th>
+                <th class="col-action"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            {% include "controller/partials/member_row.html" %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="mt-4">
+    <form class="inline-form"
+          hx-post="/controller/{{ nwid }}/members/add"
+          hx-target="#member-list"
+          hx-swap="innerHTML">
+        <input type="text" name="node_id" class="form-input mono"
+               placeholder="Node ID (10-char hex)" required
+               maxlength="10" pattern="[0-9a-fA-F]{10}"
+               style="max-width: 200px;">
+        <button type="submit" class="btn btn-primary btn-sm">
+            Add Member
+            <span class="spinner htmx-indicator"></span>
+        </button>
+    </form>
+</div>

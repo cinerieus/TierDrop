@@ -1,0 +1,48 @@
+{% if let Some(error) = error %}
+<div class="alert alert-error mb-4">
+    <span class="alert-icon">&#9888;</span>
+    <span>{{ error }}</span>
+</div>
+{% endif %}
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-label">Controller</div>
+        {% match status %}
+            {% when Some with (s) %}
+                {% if s.is_online() %}
+                <div class="stat-value online">ONLINE</div>
+                {% else %}
+                <div class="stat-value offline">OFFLINE</div>
+                {% endif %}
+            {% when None %}
+                <div class="stat-value error">N/A</div>
+        {% endmatch %}
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Node ID</div>
+        <div class="stat-value mono">
+            {% match status %}
+                {% when Some with (s) %}{{ s.display_address() }}
+                {% when None %}-
+            {% endmatch %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Networks</div>
+        <div class="stat-value">{{ network_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Members</div>
+        <div class="stat-value">{{ authorized_members }}<span class="stat-sub"> / {{ total_members }}</span></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Version</div>
+        <div class="stat-value mono">
+            {% match status %}
+                {% when Some with (s) %}{{ s.display_version() }}
+                {% when None %}-
+            {% endmatch %}
+        </div>
+    </div>
+</div>

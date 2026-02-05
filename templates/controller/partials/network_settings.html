@@ -1,0 +1,52 @@
+<div class="card-header">
+    <h3>Settings</h3>
+    <button type="button" class="btn btn-primary btn-sm qr-join-btn" data-nwid="{{ network.display_id() }}">
+        QR Join
+    </button>
+</div>
+<form hx-post="/controller/{{ network.display_id() }}/settings"
+      hx-target="#network-settings"
+      hx-swap="innerHTML">
+    <div class="detail-grid" style="grid-template-columns: 160px 1fr; row-gap: 12px;">
+        <span class="detail-label">Network ID</span>
+        <span class="detail-value mono">{{ network.display_id() }}</span>
+
+        <span class="detail-label">Name</span>
+        <span class="detail-value">
+            <input type="text" name="name" class="form-input" style="max-width:300px;"
+                   value="{{ network.display_name() }}">
+        </span>
+
+        <span class="detail-label">Private</span>
+        <span class="detail-value">
+            <label class="toggle-label">
+                <input type="checkbox" name="private" {% if network.is_private() %}checked{% endif %}>
+                <span class="text-secondary">Require member authorization</span>
+            </label>
+        </span>
+
+        <span class="detail-label">Broadcast</span>
+        <span class="detail-value">
+            <label class="toggle-label">
+                <input type="checkbox" name="enable_broadcast"
+                       {% if network.broadcast_enabled() %}checked{% endif %}>
+                <span class="text-secondary">Enable ethernet broadcast</span>
+            </label>
+        </span>
+
+        <span class="detail-label">IPv4 Auto-Assign</span>
+        <span class="detail-value">
+            <label class="toggle-label">
+                <input type="checkbox" name="v4_auto_assign"
+                       {% if network.v4_auto_assign() %}checked{% endif %}>
+                <span class="text-secondary">Automatically assign from pools</span>
+            </label>
+        </span>
+    </div>
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary btn-sm">
+            Save Settings
+            <span class="spinner htmx-indicator"></span>
+        </button>
+    </div>
+</form>

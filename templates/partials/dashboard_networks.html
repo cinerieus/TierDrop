@@ -1,0 +1,36 @@
+{% if network_rows.is_empty() %}
+<div class="empty-state">
+    <div class="icon">&#9670;</div>
+    <h3>No Networks</h3>
+    <p>Click "+ Create Network" to get started.</p>
+</div>
+{% else %}
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Network ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Subnet</th>
+                <th>Nodes</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in network_rows %}
+            <tr>
+                <td><a href="/controller/{{ row.network.display_id() }}" class="mono">{{ row.network.display_id() }}</a></td>
+                <td>{{ row.network.display_name() }}</td>
+                <td class="text-secondary">
+                    <span class="badge {{ row.network.type_class() }}">{{ row.network.display_type() }}</span>
+                </td>
+                <td class="mono">{{ row.network.display_subnet() }}</td>
+                <td>{{ row.member_count }}</td>
+                <td class="text-secondary">{{ row.network.display_creation_time() }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}

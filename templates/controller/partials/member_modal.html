@@ -1,0 +1,75 @@
+<div class="modal-backdrop" onclick="if(event.target===this)this.remove()">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Member {{ member.display_id() }}</h3>
+            <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
+        </div>
+        <form hx-post="/controller/{{ nwid }}/members/{{ member.display_id() }}/update"
+              hx-swap="none">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" name="name" class="form-input"
+                           value="{{ name }}" placeholder="Display name">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="authorized" value="on"
+                               {% if member.is_authorized() %}checked{% endif %}>
+                        Authorized
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="active_bridge" value="on"
+                               {% if member.is_bridge() %}checked{% endif %}>
+                        Allow Ethernet Bridging
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">IP Assignments</label>
+                    <input type="text" name="ip_assignments" class="form-input mono"
+                           value="{% for ip in member.ip_assignments.iter() %}{% if !loop.first %}, {% endif %}{{ ip }}{% endfor %}"
+                           placeholder="e.g. 10.0.0.1, 10.0.0.2">
+                    <small class="text-secondary">Comma-separated</small>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-section-title">Details</div>
+                    <div class="info-grid">
+                        <div class="text-secondary">Version</div>
+                        <div class="mono">{{ member.display_version() }}</div>
+                        <div class="text-secondary">Created</div>
+                        <div>{{ member.display_creation_time() }}</div>
+                        <div class="text-secondary">Last Authorized</div>
+                        <div>{{ member.display_last_authorized() }}</div>
+                        <div class="text-secondary">Last Deauthorized</div>
+                        <div>{{ member.display_last_deauthorized() }}</div>
+                        <div class="text-secondary">Identity</div>
+                        <div class="mono" style="word-break:break-all;font-size:0.75rem">
+                            {% match member.identity.as_deref() %}
+                            {% when Some with (id) %}{{ id }}{% when None %}-{% endmatch %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm"
+                        onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    Save
+                    <span class="spinner htmx-indicator"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+document.body.addEventListener("member-updated", function() {
+    var bd = document.querySelector(".modal-backdrop");
+    if (bd) bd.remove();
+}, {once: true});
+</script>

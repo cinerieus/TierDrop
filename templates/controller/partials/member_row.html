@@ -1,0 +1,41 @@
+<tr id="member-{{ row.member.display_id() }}">
+    <td class="mono">
+        <a class="node-link"
+           hx-get="/controller/{{ nwid }}/members/{{ row.member.display_id() }}/modal"
+           hx-target="body"
+           hx-swap="beforeend">
+            {{ row.member.display_id() }}
+        </a>
+    </td>
+    <td>{{ row.name }}</td>
+    <td>
+        <button
+            class="btn btn-sm {{ row.member.auth_class() }}"
+            hx-post="/controller/{{ nwid }}/members/{{ row.member.display_id() }}/authorize"
+            hx-target="#member-{{ row.member.display_id() }}"
+            hx-swap="outerHTML"
+        >
+            {{ row.member.auth_label() }}
+        </button>
+    </td>
+    <td>
+        {% for ip in row.member.ip_assignments.iter() %}
+        <span class="tag">{{ ip }}</span>
+        {% endfor %}
+        {% if row.member.ip_assignments.is_empty() %}
+        <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    <td class="mono text-secondary">{{ row.member.display_version() }}</td>
+    <td class="col-action">
+        <button
+            class="btn btn-danger btn-sm"
+            hx-delete="/controller/{{ nwid }}/members/{{ row.member.display_id() }}"
+            hx-confirm="Remove member {{ row.member.display_id() }}?"
+            hx-target="#member-{{ row.member.display_id() }}"
+            hx-swap="outerHTML"
+        >
+            Remove
+        </button>
+    </td>
+</tr>

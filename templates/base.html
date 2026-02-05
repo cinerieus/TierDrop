@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TierDrop{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/htmx-sse.js"></script>
+    <script src="/static/qrcode-generator.js"></script>
+    <script src="/static/qr.js"></script>
+</head>
+<body hx-ext="sse" sse-connect="/events">
+    <div class="app-shell" hx-boost="true">
+        <header class="top-bar">
+            <a href="/" class="top-bar-brand">
+                <div class="logo"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M16 3C16 3 6 15 6 21c0 5.52 4.48 10 10 10s10-4.48 10-10C26 15 16 3 16 3z"/></svg></div>
+                <span class="brand-text"><span class="brand-accent">Tier</span>Drop</span>
+            </a>
+            <a href="/logout" class="top-bar-logout" hx-boost="false">Logout</a>
+        </header>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
