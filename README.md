@@ -32,6 +32,8 @@
 
 TierDrop is a self-hosted web UI for managing ZeroTier networks through your local node's controller API. Run your own network controller without relying on ZeroTier Central.
 
+**[View Screenshots](screenshots/)**
+
 ```
 ┌─────────────┐      ┌─────────────────┐      ┌──────────────────┐
 │   Browser   │ ───► │    TierDrop     │ ───► │  ZeroTier Node   │
