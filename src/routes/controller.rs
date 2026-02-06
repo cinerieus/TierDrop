@@ -92,6 +92,7 @@ pub struct ControllerNetworkDetailTemplate {
     pub pools: Vec<IpAssignmentPool>,
     pub routes: Vec<ControllerRoute>,
     pub rules_source: String,
+    pub is_htmx: bool,
 }
 
 // ---- Partial Templates ----
@@ -103,6 +104,7 @@ pub struct CtrlMemberListPartial {
     pub rows: Vec<MemberDisplayRow>,
     pub member_count: usize,
     pub authorized_count: usize,
+    pub is_htmx: bool,
 }
 
 #[derive(Template, WebTemplate)]
@@ -202,6 +204,7 @@ pub async fn controller_network_detail(
                 member_count,
                 authorized_count,
                 rules_source,
+                is_htmx: false,
             }
             .into_response()
         }
@@ -232,6 +235,7 @@ pub async fn controller_network_detail(
                     member_count,
                     authorized_count,
                     rules_source,
+                    is_htmx: false,
                 }
                 .into_response()
             } else {
@@ -931,7 +935,7 @@ pub async fn add_member(
     let member_count = fresh_members.len();
     let authorized_count = fresh_members.iter().filter(|m| m.is_authorized()).count();
     let rows = enrich_members(&fresh_members, &member_names, &network);
-    CtrlMemberListPartial { nwid, rows, member_count, authorized_count }.into_response()
+    CtrlMemberListPartial { nwid, rows, member_count, authorized_count, is_htmx: true }.into_response()
 }
 
 // ---- Handlers: Member Modal ----
@@ -1073,7 +1077,7 @@ pub async fn ctrl_member_list_partial(
     let member_count = members.len();
     let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
     let rows = enrich_members(&members, &member_names, &network);
-    CtrlMemberListPartial { nwid, rows, member_count, authorized_count }
+    CtrlMemberListPartial { nwid, rows, member_count, authorized_count, is_htmx: true }
 }
 
 // ---- Handlers: Flow Rules ----

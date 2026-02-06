@@ -6,13 +6,11 @@
 <div class="page-header">
     <div class="flex items-center justify-between">
         <div>
-            <h2>Dashboard</h2>
-            <p>Network controller overview</p>
+            <h2>Networks</h2>
         </div>
         <form hx-post="/controller/create" hx-target="body">
-            <button type="submit" class="btn btn-primary">
-                + Create Network
-                <span class="spinner htmx-indicator"></span>
+            <button type="submit" class="btn btn-primary btn-icon" title="Create Network">
+                <svg class="htmx-hide-on-request" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span class="spinner htmx-indicator"></span>
             </button>
         </form>
     </div>
@@ -26,9 +24,6 @@
 </div>
 
 <div class="card">
-    <div class="card-header">
-        <h3>Networks</h3>
-    </div>
     <div id="dashboard-networks"
          hx-get="/partials/networks"
          hx-trigger="sse:ctrl-networks-changed, sse:ctrl-members-changed, every 5s"

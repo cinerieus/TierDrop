@@ -165,6 +165,13 @@ a:hover { color: var(--orange-hover); }
     transition: all var(--transition);
 }
 
+.theme-toggle-standalone {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+}
+
 .theme-toggle:hover {
     color: var(--orange);
     background: var(--orange-dim);
@@ -378,7 +385,6 @@ td.col-action {
 .btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
     padding: 8px 16px;
     border: none;
     border-radius: var(--radius-sm);
@@ -423,6 +429,15 @@ td.col-action {
 .btn-sm {
     padding: 5px 10px;
     font-size: 12px;
+}
+
+.btn-icon {
+    padding: 8px;
+    min-width: auto;
+}
+
+.btn-icon svg {
+    display: block;
 }
 
 /* ---- Authorize Button States ---- */
@@ -749,15 +764,19 @@ td.col-action {
 
 /* ---- Loading indicator ---- */
 .htmx-indicator {
-    display: none;
+    display: none !important;
 }
 .htmx-request .htmx-indicator,
 .htmx-request.htmx-indicator {
-    display: inline-block;
+    display: inline-block !important;
+}
+
+/* Hide text/icons during HTMX request (replaced by spinner) */
+.htmx-request .htmx-hide-on-request {
+    display: none;
 }
 
 .spinner {
-    display: inline-block;
     width: 16px;
     height: 16px;
     border: 2px solid var(--border);
@@ -1082,4 +1101,165 @@ a.node-link:hover {
     .inline-form .form-input {
         max-width: 100% !important;
     }
+}
+
+/* ---- Settings Page ---- */
+.settings-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.settings-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.settings-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-info-label {
+    color: var(--text-secondary);
+}
+
+.settings-info-value {
+    color: var(--text);
+}
+
+.settings-form {
+    margin-bottom: 1rem;
+}
+
+.settings-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(255, 167, 38, 0.1);
+    border: 1px solid rgba(255, 167, 38, 0.3);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    color: var(--yellow);
+}
+
+.settings-warning svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* File input */
+.file-input-wrapper {
+    margin-bottom: 1rem;
+}
+
+.file-input-wrapper input[type="file"] {
+    display: none;
+}
+
+.file-input-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color var(--transition);
+    color: var(--text-secondary);
+}
+
+.file-input-label:hover {
+    border-color: var(--orange);
+}
+
+/* Restore result */
+.restore-result {
+    padding: 1rem;
+    border-radius: var(--radius-sm);
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+}
+
+.restore-result.success {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.restore-result.error {
+    background: rgba(229, 57, 53, 0.1);
+    border: 1px solid rgba(229, 57, 53, 0.3);
+}
+
+.restore-result .restore-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.restore-result.success .restore-icon {
+    background: rgba(76, 175, 80, 0.2);
+    color: var(--green);
+}
+
+.restore-result.error .restore-icon {
+    background: rgba(229, 57, 53, 0.2);
+    color: var(--red);
+}
+
+.restore-result h4 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.restore-result.success h4 {
+    color: var(--green);
+}
+
+.restore-result.error h4 {
+    color: var(--red);
+}
+
+.restore-result p {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.restore-result .restore-notice {
+    color: var(--yellow);
+}
+
+.restore-result .restore-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Top bar settings link */
+.top-bar-link {
+    font-size: 13px;
+    color: var(--text-secondary);
+    transition: color var(--transition);
+}
+
+.top-bar-link:hover {
+    color: var(--orange);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }

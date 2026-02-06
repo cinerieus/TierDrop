@@ -6,7 +6,7 @@ use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
 use crate::assets::serve_static;
 use crate::auth;
-use crate::routes::{controller, dashboard};
+use crate::routes::{backup, controller, dashboard, settings};
 use crate::sse;
 use crate::state::AppState;
 
@@ -91,6 +91,10 @@ pub fn build_router(state: AppState) -> Router {
             "/controller/partials/{nwid}/members",
             get(controller::ctrl_member_list_partial),
         )
+        // Settings and backup
+        .route("/settings", get(settings::settings_page))
+        .route("/settings/backup/export", post(backup::export_backup))
+        .route("/settings/backup/restore", post(backup::restore_backup))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,

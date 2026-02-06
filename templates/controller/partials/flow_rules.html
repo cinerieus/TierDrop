@@ -35,10 +35,7 @@ accept;
     </div>
     <input type="hidden" id="compiled-rules" name="compiled_rules" value="">
     <div class="mt-4 flex items-center gap-3">
-        <button type="submit" class="btn btn-primary btn-sm" id="apply-rules-btn" disabled>
-            Apply
-            <span class="spinner htmx-indicator"></span>
-        </button>
+        <button type="submit" class="btn btn-primary btn-sm" id="apply-rules-btn" disabled><span class="htmx-hide-on-request">Apply</span><span class="spinner htmx-indicator"></span></button>
         <span id="compile-status" class="text-secondary text-sm" style="margin-left: 4px;"></span>
     </div>
 </form>

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}TierDrop - Settings{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-2">
+    <a href="/" class="back-link" style="margin-bottom:0">&larr; Dashboard</a>
+</div>
+
+<div class="page-header">
+    <h2>Settings</h2>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('backup')">Backup / Restore</button>
+</div>
+
+<!-- Backup Tab -->
+<div id="tab-backup" class="tab-content active">
+    <!-- Export Section -->
+    <div class="card">
+        <h3 class="settings-section-title">Export Backup</h3>
+        <div class="settings-info">
+            <div class="settings-info-row">
+                <span class="settings-info-label">Node Address</span>
+                <span class="settings-info-value mono">{% match node_address %}{% when Some with (addr) %}{{ addr }}{% when None %}Unknown{% endmatch %}</span>
+            </div>
+            <div class="settings-info-row">
+                <span class="settings-info-label">Networks</span>
+                <span class="settings-info-value">{{ network_count }}</span>
+            </div>
+            <div class="settings-info-row">
+                <span class="settings-info-label">Backup Type</span>
+                <span class="settings-info-value">
+                    {% if backup_type == "full" %}
+                    <span class="status-badge status-online">Full</span>
+                    {% else %}
+                    <span class="status-badge status-offline">Partial</span>
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <form method="POST" action="/settings/backup/export" class="settings-form" hx-boost="false">
+            <button type="submit" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Backup
+            </button>
+        </form>
+
+        <div class="settings-warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>Backup contains private keys. Store securely and do not share.</span>
+        </div>
+    </div>
+
+    <!-- Restore Section -->
+    <div class="card">
+        <h3 class="settings-section-title">Restore from Backup</h3>
+
+        <form method="POST" action="/settings/backup/restore" enctype="multipart/form-data" class="settings-form" id="restore-form">
+            <div class="file-input-wrapper">
+                <input type="file" id="backup_file" name="backup_file" accept=".tar.gz,.tgz" required>
+                <label for="backup_file" class="file-input-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span id="file-name">Choose backup file...</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-secondary" id="restore-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                </svg>
+                Restore Backup
+            </button>
+        </form>
+
+        <div id="restore-result" hx-swap-oob="true"></div>
+
+        <div class="settings-warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>This will replace current controller data. ZeroTier service may need to be restarted.</span>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// File input handling
+document.getElementById('backup_file').addEventListener('change', function(e) {
+    var fileName = e.target.files[0] ? e.target.files[0].name : 'Choose backup file...';
+    document.getElementById('file-name').textContent = fileName;
+    document.getElementById('restore-btn').disabled = !e.target.files[0];
+});
+
+// HTMX restore form
+document.getElementById('restore-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var formData = new FormData(this);
+    var btn = document.getElementById('restore-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Restoring...';
+
+    fetch('/settings/backup/restore', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('restore-result').innerHTML = html;
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg> Restore Backup';
+    })
+    .catch(err => {
+        document.getElementById('restore-result').innerHTML = '<div class="restore-result error"><div class="restore-icon">!</div><h4>Restore Failed</h4><p>' + err.message + '</p></div>';
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg> Restore Backup';
+    });
+});
+</script>
+{% endblock %}

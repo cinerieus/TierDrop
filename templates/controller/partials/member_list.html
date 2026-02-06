@@ -1,5 +1,7 @@
+{% if is_htmx %}
 <div id="stat-total" hx-swap-oob="true">{{ member_count }}</div>
 <div id="stat-authorized" hx-swap-oob="true">{{ authorized_count }}</div>
+{% endif %}
 
 <div class="card-header">
     <h3>Members ({{ member_count }})</h3>
@@ -41,9 +43,6 @@
                placeholder="Node ID (10-char hex)" required
                maxlength="10" pattern="[0-9a-fA-F]{10}"
                style="max-width: 200px;">
-        <button type="submit" class="btn btn-primary btn-sm">
-            Add Member
-            <span class="spinner htmx-indicator"></span>
-        </button>
+        <button type="submit" class="btn btn-primary btn-sm"><span class="htmx-hide-on-request">Add Member</span><span class="spinner htmx-indicator"></span></button>
     </form>
 </div>
