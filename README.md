@@ -46,7 +46,7 @@ TierDrop is a self-hosted web UI for managing ZeroTier networks through your loc
 | Feature | Description |
 |---------|-------------|
 | **Network Management** | Create, configure, and delete ZeroTier networks |
-| **Member Control** | Authorize members, assign IPs, set names, remove devices |
+| **Member Control** | Authorize members, assign IPs, set names/descriptions, remove devices |
 | **IPv4 & IPv6 Support** | Auto-assign pools for both protocols, plus RFC4193 and 6PLANE modes |
 | **IP Pool Management** | Configure auto-assign IP ranges for your networks |
 | **Route Configuration** | Define network routes for traffic forwarding |
@@ -55,9 +55,10 @@ TierDrop is a self-hosted web UI for managing ZeroTier networks through your loc
 | **Flow Rules Editor** | Dual-pane DSL editor with live JSON preview and syntax validation |
 | **Backup & Restore** | Export/import complete controller state including identity and networks |
 | **Real-time Updates** | Live dashboard via Server-Sent Events (SSE) |
-| **Password Protection** | Secure authentication for the web interface |
+| **Multi-User Support** | Create multiple users with granular per-network permissions |
+| **Two-Factor Authentication** | TOTP-based 2FA compatible with any authenticator app |
+| **Dark & Light Themes** | Toggle between dark and light mode, with system preference detection |
 | **Single Binary** | No external dependencies, all assets embedded |
-| **Dark Theme** | Easy on the eyes, built for terminal users |
 
 ## Installation
 
@@ -211,11 +212,48 @@ TierDrop stores configuration in the platform-appropriate location:
 | macOS | `~/Library/Application Support/tierdrop/config.json` |
 
 Config includes:
-- Member display names (ZeroTier doesn't store names)
+- User accounts and permissions
+- Member and network display names/descriptions
 - Flow rules DSL source code
-- Password hash (if authentication is enabled)
+- 2FA secrets (encrypted)
+- Theme preferences
 
 Network and member data is stored by ZeroTier itself.
+
+### Multi-User & Permissions
+
+TierDrop supports multiple user accounts with granular access control:
+
+| Permission | Description |
+|------------|-------------|
+| **Admin** | Full access to all networks and settings, can manage users |
+| **Read** | View network details, members, and settings |
+| **Authorize** | Authorize/deauthorize members |
+| **Modify** | Edit network settings, member IPs, routes, etc. |
+| **Delete** | Remove members from networks |
+
+Permissions are assigned per-network, allowing fine-grained access control. The first user created during setup is always an admin.
+
+### Two-Factor Authentication
+
+Users can enable TOTP-based 2FA for additional security:
+
+1. Go to **Settings > Account**
+2. Click **Enable 2FA**
+3. Scan the QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.)
+4. Enter the 6-digit code to verify and activate
+
+Once enabled, you'll need to enter a code from your authenticator app after entering your password.
+
+### Themes
+
+TierDrop supports both dark and light themes:
+
+- **Dark**: Default theme, easy on the eyes
+- **Light**: High contrast for bright environments
+- **System**: Follows your OS/browser preference
+
+Toggle via the theme button in the top navigation bar. Preference is saved per-browser.
 
 ### Backup & Restore
 
