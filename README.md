@@ -53,6 +53,7 @@ TierDrop is a self-hosted web UI for managing ZeroTier networks through your loc
 | **DNS Configuration** | Set search domain and DNS servers for your network |
 | **Multicast Settings** | Enable ethernet broadcast and set recipient limits |
 | **Flow Rules Editor** | Dual-pane DSL editor with live JSON preview and syntax validation |
+| **Backup & Restore** | Export/import complete controller state including identity and networks |
 | **Real-time Updates** | Live dashboard via Server-Sent Events (SSE) |
 | **Password Protection** | Secure authentication for the web interface |
 | **Single Binary** | No external dependencies, all assets embedded |
@@ -211,9 +212,26 @@ TierDrop stores configuration in the platform-appropriate location:
 
 Config includes:
 - Member display names (ZeroTier doesn't store names)
+- Flow rules DSL source code
 - Password hash (if authentication is enabled)
 
 Network and member data is stored by ZeroTier itself.
+
+### Backup & Restore
+
+TierDrop can backup and restore your complete controller state via Settings > Backup / Restore.
+
+**Backup includes:**
+- ZeroTier identity files (`identity.secret`, `identity.public`)
+- Controller database (`controller.d/`)
+- Auth token (`authtoken.secret`)
+- TierDrop config (member names, flow rules source)
+
+**Backup types:**
+- **Full**: Includes identity files (requires root/admin access to ZeroTier directory)
+- **Partial**: Controller data only (when identity files aren't readable)
+
+Backups are exported as `.tar.gz` archives. Restoring a backup will replace the current controller state and may require restarting ZeroTier and TierDrop.
 
 ## License
 
