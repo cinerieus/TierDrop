@@ -24,6 +24,7 @@ pub struct SettingsTemplate {
     pub is_admin: bool,
     pub users: Vec<User>,
     pub current_username: String,
+    pub totp_enabled: bool,
 }
 
 pub async fn settings_page(
@@ -45,7 +46,8 @@ pub async fn settings_page(
         version: crate::VERSION,
         is_admin: current_user.is_admin,
         users,
-        current_username: current_user.username,
+        current_username: current_user.username.clone(),
+        totp_enabled: current_user.totp_enabled,
     }
 }
 
@@ -418,5 +420,195 @@ pub async fn delete_user(
     UsersListTemplate {
         users,
         current_user_id: current_user.id,
+    }.into_response()
+}
+
+// ---- 2FA Settings ----
+
+use totp_rs::{Algorithm, Secret, TOTP};
+use tower_sessions::Session;
+
+const SESSION_TOTP_SETUP_SECRET: &str = "totp_setup_secret";
+
+#[derive(Template, WebTemplate)]
+#[template(path = "partials/2fa_setup_modal.html")]
+pub struct TotpSetupModalTemplate {
+    pub qr_code_data_uri: String,
+    pub secret: String,
+}
+
+#[derive(Template, WebTemplate)]
+#[template(path = "partials/2fa_disable_modal.html")]
+pub struct TotpDisableModalTemplate;
+
+#[derive(Template, WebTemplate)]
+#[template(path = "partials/2fa_status.html")]
+pub struct TotpStatusTemplate {
+    pub totp_enabled: bool,
+}
+
+/// GET /settings/2fa/setup - Show 2FA setup modal with QR code
+pub async fn totp_setup_modal(
+    session: Session,
+    Extension(current_user): Extension<User>,
+) -> Response {
+    // Generate a new TOTP secret
+    let secret = Secret::generate_secret();
+    let secret_base32 = secret.to_encoded().to_string();
+
+    // Store secret in session for verification
+    if session.insert(SESSION_TOTP_SETUP_SECRET, &secret_base32).await.is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to store setup secret").into_response();
+    }
+
+    // Create TOTP for QR code generation
+    let totp = match TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        secret.to_bytes().unwrap(),
+        Some("TierDrop".to_string()),
+        current_user.username.clone(),
+    ) {
+        Ok(t) => t,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create TOTP").into_response(),
+    };
+
+    // Generate QR code as data URI
+    let qr_code_data_uri = match totp.get_qr_base64() {
+        Ok(qr) => format!("data:image/png;base64,{}", qr),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate QR code").into_response(),
+    };
+
+    TotpSetupModalTemplate {
+        qr_code_data_uri,
+        secret: secret_base32,
+    }.into_response()
+}
+
+#[derive(Deserialize)]
+pub struct TotpEnableForm {
+    code: String,
+}
+
+/// POST /settings/2fa/enable - Verify code and enable 2FA
+pub async fn totp_enable(
+    session: Session,
+    State(state): State<AppState>,
+    Extension(current_user): Extension<User>,
+    Form(form): Form<TotpEnableForm>,
+) -> Response {
+    // Get the setup secret from session
+    let secret_base32: String = match session.get(SESSION_TOTP_SETUP_SECRET).await {
+        Ok(Some(s)) => s,
+        _ => return (
+            [("HX-Trigger", r#"{"2fa-error":{"message":"Setup session expired. Please try again."}}"#)],
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ).into_response(),
+    };
+
+    // Verify the code
+    let code = form.code.trim().replace(" ", "");
+    if !crate::auth::verify_totp(&code, &secret_base32) {
+        return (
+            [("HX-Trigger", r#"{"2fa-error":{"message":"Invalid verification code. Please try again."}}"#)],
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ).into_response();
+    }
+
+    // Code is valid - save secret to user and enable 2FA
+    {
+        let mut config = state.config.write().await;
+        if let Some(ref mut c) = *config {
+            if let Some(user) = c.find_user_by_id_mut(current_user.id) {
+                user.totp_enabled = true;
+                user.totp_secret = Some(secret_base32);
+                if let Err(e) = c.save() {
+                    let trigger = format!(r#"{{"2fa-error":{{"message":"Failed to save: {}"}}}}"#, e);
+                    return (
+                        [("HX-Trigger", trigger)],
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                    ).into_response();
+                }
+            } else {
+                return (
+                    [("HX-Trigger", r#"{"2fa-error":{"message":"User not found."}}"#)],
+                    StatusCode::NOT_FOUND,
+                ).into_response();
+            }
+        }
+    }
+
+    // Clear the setup secret from session
+    let _ = session.remove::<String>(SESSION_TOTP_SETUP_SECRET).await;
+
+    // Trigger success event - modal will close and refresh status
+    (
+        [("HX-Trigger", "2fa-enabled")],
+        StatusCode::OK,
+    ).into_response()
+}
+
+/// GET /settings/2fa/disable-modal - Show disable 2FA confirmation modal
+pub async fn totp_disable_modal() -> Response {
+    TotpDisableModalTemplate.into_response()
+}
+
+#[derive(Deserialize)]
+pub struct TotpDisableForm {
+    password: String,
+}
+
+/// POST /settings/2fa/disable - Disable 2FA (requires password)
+pub async fn totp_disable(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<User>,
+    Form(form): Form<TotpDisableForm>,
+) -> Response {
+    // Verify password
+    if !verify_password(&form.password, &current_user.password_hash) {
+        return (
+            [("HX-Trigger", r#"{"2fa-disable-error":{"message":"Incorrect password."}}"#)],
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ).into_response();
+    }
+
+    // Disable 2FA
+    {
+        let mut config = state.config.write().await;
+        if let Some(ref mut c) = *config {
+            if let Some(user) = c.find_user_by_id_mut(current_user.id) {
+                user.totp_enabled = false;
+                user.totp_secret = None;
+                if let Err(e) = c.save() {
+                    let trigger = format!(r#"{{"2fa-disable-error":{{"message":"Failed to save: {}"}}}}"#, e);
+                    return (
+                        [("HX-Trigger", trigger)],
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                    ).into_response();
+                }
+            } else {
+                return (
+                    [("HX-Trigger", r#"{"2fa-disable-error":{"message":"User not found."}}"#)],
+                    StatusCode::NOT_FOUND,
+                ).into_response();
+            }
+        }
+    }
+
+    // Trigger success event - modal will close and refresh status
+    (
+        [("HX-Trigger", "2fa-disabled")],
+        StatusCode::OK,
+    ).into_response()
+}
+
+/// GET /settings/2fa/status - Get current 2FA status (for HTMX refresh)
+pub async fn totp_status(
+    Extension(current_user): Extension<User>,
+) -> Response {
+    TotpStatusTemplate {
+        totp_enabled: current_user.totp_enabled,
     }.into_response()
 }

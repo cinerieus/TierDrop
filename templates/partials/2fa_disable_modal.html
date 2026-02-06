@@ -1,0 +1,51 @@
+<div class="modal-backdrop" onclick="if(event.target===this)this.remove()">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>Disable Two-Factor Authentication</h3>
+            <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
+        </div>
+        <form hx-post="/settings/2fa/disable"
+              hx-swap="none">
+            <div class="modal-body">
+                <div id="2fa-disable-error"></div>
+                <p class="text-secondary" style="margin-bottom: 16px;">
+                    Are you sure you want to disable two-factor authentication? This will make your account less secure.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Enter your password to confirm</label>
+                    <input type="password" name="password" class="form-input"
+                           autocomplete="current-password"
+                           required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm" onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm">
+                    <span class="htmx-hide-on-request">Disable 2FA</span>
+                    <span class="spinner htmx-indicator"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+document.body.addEventListener('2fa-disabled', function() {
+    var bd = document.querySelector('.modal-backdrop');
+    if (bd) bd.remove();
+    // Refresh the 2fa-status section
+    fetch('/settings/2fa/status')
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            document.getElementById('2fa-status').innerHTML = html;
+            htmx.process(document.getElementById('2fa-status'));
+        });
+}, {once: true});
+
+document.body.addEventListener('2fa-disable-error', function(evt) {
+    var errorDiv = document.getElementById('2fa-disable-error');
+    if (errorDiv && evt.detail && evt.detail.message) {
+        errorDiv.innerHTML = '<div class="alert alert-error">' + evt.detail.message + '</div>';
+    }
+}, {once: true});
+</script>

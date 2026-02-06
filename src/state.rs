@@ -48,6 +48,12 @@ pub struct User {
     #[serde(default)]
     pub network_permissions: HashMap<String, NetworkPermissions>,
     pub created_at: DateTime<Utc>,
+    /// Whether TOTP 2FA is enabled for this user
+    #[serde(default)]
+    pub totp_enabled: bool,
+    /// Base32-encoded TOTP secret (only set if totp_enabled is true)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp_secret: Option<String>,
 }
 
 impl User {
@@ -60,6 +66,8 @@ impl User {
             is_admin: true,
             network_permissions: HashMap::new(),
             created_at: Utc::now(),
+            totp_enabled: false,
+            totp_secret: None,
         }
     }
 
@@ -72,6 +80,8 @@ impl User {
             is_admin,
             network_permissions: HashMap::new(),
             created_at: Utc::now(),
+            totp_enabled: false,
+            totp_secret: None,
         }
     }
 
@@ -85,7 +95,7 @@ impl User {
     }
 
     /// Check if user can access any network (for dashboard visibility)
-    pub fn can_access_any_network(&self) -> bool {
+    pub fn _can_access_any_network(&self) -> bool {
         if self.is_admin {
             return true;
         }
@@ -223,7 +233,7 @@ impl Config {
     }
 
     /// Check if there's at least one admin user
-    pub fn has_admin(&self) -> bool {
+    pub fn _has_admin(&self) -> bool {
         self.users.iter().any(|u| u.is_admin)
     }
 }

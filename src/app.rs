@@ -103,6 +103,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/settings/users/{id}/modal", get(settings::user_modal))
         .route("/settings/users/{id}/update", post(settings::update_user))
         .route("/settings/users/{id}", delete(settings::delete_user))
+        // 2FA settings
+        .route("/settings/2fa/setup", get(settings::totp_setup_modal))
+        .route("/settings/2fa/enable", post(settings::totp_enable))
+        .route("/settings/2fa/disable-modal", get(settings::totp_disable_modal))
+        .route("/settings/2fa/disable", post(settings::totp_disable))
+        .route("/settings/2fa/status", get(settings::totp_status))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
@@ -115,6 +121,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/setup", post(auth::setup_submit))
         .route("/login", get(auth::login_page))
         .route("/login", post(auth::login_submit))
+        .route("/login/2fa", get(auth::login_2fa_page))
+        .route("/login/2fa", post(auth::login_2fa_submit))
         .route("/logout", get(auth::logout))
         .route("/static/{*path}", get(serve_static));
 

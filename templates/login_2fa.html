@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TierDrop — Two-Factor Authentication</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        (function() {
+            var theme = localStorage.getItem('theme') || 'dark';
+            if (theme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+</head>
+<body>
+    <button class="theme-toggle theme-toggle-standalone" onclick="toggleTheme()" title="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+    </button>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="brand">
+                <div class="logo"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M16 3C16 3 6 15 6 21c0 5.52 4.48 10 10 10s10-4.48 10-10C26 15 16 3 16 3z"/></svg></div>
+                <h1><span>Tier</span>Drop</h1>
+                <p>Two-Factor Authentication</p>
+            </div>
+
+            {% if let Some(error) = error %}
+            <div class="login-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="/login/2fa">
+                <div class="form-group">
+                    <label for="code">Verification Code</label>
+                    <input
+                        type="text"
+                        id="code"
+                        name="code"
+                        class="form-input mono"
+                        placeholder="000000"
+                        autocomplete="one-time-code"
+                        inputmode="numeric"
+                        pattern="[0-9\s]*"
+                        maxlength="7"
+                        autofocus
+                        required
+                        style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5em;"
+                    >
+                    <small class="text-secondary" style="display: block; margin-top: 8px;">Enter the 6-digit code from your authenticator app</small>
+                </div>
+                <button type="submit" class="btn btn-primary">Verify</button>
+            </form>
+
+            <div style="margin-top: 16px; text-align: center;">
+                <a href="/login" class="text-secondary" style="font-size: 0.875rem;">&larr; Back to login</a>
+            </div>
+        </div>
+    </div>
+    <script>
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'light' ? 'dark' : 'light';
+            if (next === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+            localStorage.setItem('theme', next);
+        }
+    </script>
+</body>
+</html>

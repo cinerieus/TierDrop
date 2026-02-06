@@ -13,6 +13,7 @@ use tower_sessions::Session;
 use crate::state::{AppState, Config, User};
 
 const SESSION_USER_ID_KEY: &str = "user_id";
+const SESSION_2FA_PENDING_KEY: &str = "2fa_pending";
 
 /// Hash a password with Argon2id
 pub fn hash_password(password: &str) -> Result<String, String> {
@@ -40,6 +41,11 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 /// Get the current user ID from the session
 pub async fn get_session_user_id(session: &Session) -> Option<u64> {
     session.get::<u64>(SESSION_USER_ID_KEY).await.ok().flatten()
+}
+
+/// Get the user ID pending 2FA verification
+pub async fn get_2fa_pending_user_id(session: &Session) -> Option<u64> {
+    session.get::<u64>(SESSION_2FA_PENDING_KEY).await.ok().flatten()
 }
 
 /// Get the current user from session + config
@@ -224,7 +230,17 @@ pub async fn login_submit(
     // Find user by username
     if let Some(user) = config.find_user_by_username(username) {
         if verify_password(&form.password, &user.password_hash) {
-            // Store user ID in session
+            // Check if 2FA is enabled
+            if user.totp_enabled && user.totp_secret.is_some() {
+                // Store user ID in pending 2FA state
+                session
+                    .insert(SESSION_2FA_PENDING_KEY, user.id)
+                    .await
+                    .unwrap_or_default();
+                return Redirect::to("/login/2fa").into_response();
+            }
+
+            // No 2FA - complete login directly
             session
                 .insert(SESSION_USER_ID_KEY, user.id)
                 .await
@@ -243,4 +259,113 @@ pub async fn login_submit(
 pub async fn logout(session: Session) -> Redirect {
     session.flush().await.unwrap_or_default();
     Redirect::to("/login")
+}
+
+// ---- 2FA Verification ----
+
+#[derive(askama::Template, askama_web::WebTemplate)]
+#[template(path = "login_2fa.html")]
+pub struct Login2faTemplate {
+    pub error: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct Login2faForm {
+    pub code: String,
+}
+
+/// GET /login/2fa
+pub async fn login_2fa_page(
+    State(state): State<AppState>,
+    session: Session,
+) -> Response {
+    // If already authenticated, go to dashboard
+    if is_authenticated(&session, &state).await {
+        return Redirect::to("/").into_response();
+    }
+
+    // Must have pending 2FA
+    if get_2fa_pending_user_id(&session).await.is_none() {
+        return Redirect::to("/login").into_response();
+    }
+
+    Login2faTemplate { error: None }.into_response()
+}
+
+/// POST /login/2fa
+pub async fn login_2fa_submit(
+    session: Session,
+    State(state): State<AppState>,
+    Form(form): Form<Login2faForm>,
+) -> Response {
+    // Get pending user ID
+    let pending_user_id = match get_2fa_pending_user_id(&session).await {
+        Some(id) => id,
+        None => return Redirect::to("/login").into_response(),
+    };
+
+    // Get user from config
+    let config = state.config.read().await;
+    let user = match config.as_ref().and_then(|c| c.find_user_by_id(pending_user_id)) {
+        Some(u) => u.clone(),
+        None => {
+            // User no longer exists
+            session.remove::<u64>(SESSION_2FA_PENDING_KEY).await.unwrap_or_default();
+            return Redirect::to("/login").into_response();
+        }
+    };
+    drop(config);
+
+    // Get TOTP secret
+    let secret = match &user.totp_secret {
+        Some(s) => s,
+        None => {
+            // 2FA not properly configured
+            session.remove::<u64>(SESSION_2FA_PENDING_KEY).await.unwrap_or_default();
+            return Redirect::to("/login").into_response();
+        }
+    };
+
+    // Verify TOTP code
+    let code = form.code.trim().replace(" ", "");
+    if verify_totp(&code, secret) {
+        // Clear pending state
+        session.remove::<u64>(SESSION_2FA_PENDING_KEY).await.unwrap_or_default();
+        // Complete login
+        session
+            .insert(SESSION_USER_ID_KEY, user.id)
+            .await
+            .unwrap_or_default();
+        return Redirect::to("/").into_response();
+    }
+
+    Login2faTemplate {
+        error: Some("Invalid verification code.".to_string()),
+    }
+    .into_response()
+}
+
+/// Verify a TOTP code against a secret
+pub fn verify_totp(code: &str, secret: &str) -> bool {
+    use totp_rs::{Algorithm, TOTP, Secret};
+
+    let secret = match Secret::Encoded(secret.to_string()).to_bytes() {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    let totp = match TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        secret,
+        None,
+        String::new(),
+    ) {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+
+    totp.check_current(code).unwrap_or(false)
 }

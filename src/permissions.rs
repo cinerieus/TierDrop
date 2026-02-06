@@ -38,7 +38,7 @@ pub fn is_admin(user: &User) -> bool {
 }
 
 /// Check if user has any permission on a network
-pub fn has_any_permission(user: &User, nwid: &str) -> bool {
+pub fn _has_any_permission(user: &User, nwid: &str) -> bool {
     if user.is_admin {
         return true;
     }

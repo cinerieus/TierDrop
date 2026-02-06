@@ -1,0 +1,17 @@
+{% if totp_enabled %}
+<p class="text-secondary" style="margin-bottom: 12px;">Two-factor authentication is currently <strong style="color: var(--success);">enabled</strong>.</p>
+<button type="button" class="btn btn-danger"
+        hx-get="/settings/2fa/disable-modal"
+        hx-target="body"
+        hx-swap="beforeend">
+    Disable 2FA
+</button>
+{% else %}
+<p class="text-secondary" style="margin-bottom: 12px;">Add an extra layer of security to your account by enabling two-factor authentication with an authenticator app.</p>
+<button type="button" class="btn btn-primary"
+        hx-get="/settings/2fa/setup"
+        hx-target="body"
+        hx-swap="beforeend">
+    Enable 2FA
+</button>
+{% endif %}
