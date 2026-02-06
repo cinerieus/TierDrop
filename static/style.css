@@ -419,6 +419,12 @@ td.col-action {
     cursor: pointer;
 }
 
+.toggle-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 /* ---- Login Page ---- */
 .login-container {
     min-height: 100vh;

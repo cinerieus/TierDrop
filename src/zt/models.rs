@@ -74,7 +74,15 @@ pub struct ControllerNetwork {
     #[serde(default)]
     pub rules: Vec<serde_json::Value>,
     #[serde(default)]
-    pub dns: serde_json::Value,
+    pub dns: DnsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct DnsConfig {
+    #[serde(default)]
+    pub domain: String,
+    #[serde(default)]
+    pub servers: Vec<String>,
 }
 
 impl ControllerNetwork {
@@ -118,14 +126,24 @@ impl ControllerNetwork {
             .unwrap_or_else(|| "2800".to_string())
     }
 
-    pub fn _display_multicast_limit(&self) -> String {
-        self.multicast_limit
-            .map(|m| m.to_string())
-            .unwrap_or_else(|| "32".to_string())
+    pub fn display_multicast_limit(&self) -> u32 {
+        self.multicast_limit.unwrap_or(32)
     }
 
     pub fn v4_auto_assign(&self) -> bool {
         self.v4_assign_mode.as_ref().map(|m| m.zt).unwrap_or(false)
+    }
+
+    pub fn v6_rfc4193(&self) -> bool {
+        self.v6_assign_mode.as_ref().map(|m| m.rfc4193).unwrap_or(false)
+    }
+
+    pub fn v6_sixplane(&self) -> bool {
+        self.v6_assign_mode.as_ref().map(|m| m.sixplane).unwrap_or(false)
+    }
+
+    pub fn v6_zt_auto_assign(&self) -> bool {
+        self.v6_assign_mode.as_ref().map(|m| m.zt).unwrap_or(false)
     }
 
     pub fn broadcast_enabled(&self) -> bool {
@@ -175,6 +193,14 @@ impl ControllerRoute {
     pub fn display_via(&self) -> &str {
         self.via.as_deref().unwrap_or("(LAN)")
     }
+
+    pub fn is_ipv6(&self) -> bool {
+        self.target.as_ref().map(|s| s.contains(':')).unwrap_or(false)
+    }
+
+    pub fn is_ipv4(&self) -> bool {
+        !self.is_ipv6()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -198,6 +224,14 @@ impl IpAssignmentPool {
             (Some(start), Some(end)) => format!("{} - {}", start, end),
             _ => "-".to_string(),
         }
+    }
+
+    pub fn is_ipv6(&self) -> bool {
+        self.ip_range_start.as_ref().map(|s| s.contains(':')).unwrap_or(false)
+    }
+
+    pub fn is_ipv4(&self) -> bool {
+        !self.is_ipv6()
     }
 }
 
@@ -275,6 +309,62 @@ impl ControllerMember {
 
     pub fn display_last_deauthorized(&self) -> String {
         format_epoch_ms(self.last_deauthorized_time)
+    }
+
+    /// Returns IP assignments as comma-separated string, IPv4 first then IPv6
+    pub fn display_ip_assignments(&self) -> String {
+        let mut ipv4: Vec<&str> = Vec::new();
+        let mut ipv6: Vec<&str> = Vec::new();
+        for ip in &self.ip_assignments {
+            if ip.contains(':') {
+                ipv6.push(ip);
+            } else {
+                ipv4.push(ip);
+            }
+        }
+        ipv4.extend(ipv6);
+        ipv4.join(", ")
+    }
+
+    /// Compute RFC4193 address for this member
+    /// Format: fd<nwid>9993<nodeid> split into groups of 4
+    pub fn rfc4193_address(&self) -> Option<String> {
+        let nwid = self.nwid.as_ref()?;
+        let node = self.address.as_ref().or(self.id.as_ref())?;
+        if nwid.len() != 16 || node.len() != 10 {
+            return None;
+        }
+        // fd + nwid(16) + 9993 + node(10) = 32 hex chars after fd
+        let full = format!("fd{}9993{}", nwid, node);
+        // Split into groups of 4
+        let parts: Vec<&str> = (0..8).map(|i| &full[i * 4..(i + 1) * 4]).collect();
+        Some(parts.join(":"))
+    }
+
+    /// Compute 6PLANE address for this member
+    /// XOR first 4 bytes of nwid with bytes 4-7, then append node + padding
+    pub fn sixplane_address(&self) -> Option<String> {
+        let nwid = self.nwid.as_ref()?;
+        let node = self.address.as_ref().or(self.id.as_ref())?;
+        if nwid.len() != 16 || node.len() != 10 {
+            return None;
+        }
+        // Parse nwid bytes
+        let nwid_bytes: Vec<u8> = (0..8)
+            .filter_map(|i| u8::from_str_radix(&nwid[i * 2..i * 2 + 2], 16).ok())
+            .collect();
+        if nwid_bytes.len() != 8 {
+            return None;
+        }
+        // XOR first 4 bytes with bytes 4-7
+        let xored: Vec<String> = (0..4)
+            .map(|i| format!("{:02x}", nwid_bytes[i] ^ nwid_bytes[i + 4]))
+            .collect();
+        // Build: fc(2) + xored(8) + node(10) + padding(12) = 32 hex chars
+        let full = format!("fc{}{}{}", xored.join(""), node, "000000000001");
+        // Split into groups of 4
+        let parts: Vec<&str> = (0..8).map(|i| &full[i * 4..(i + 1) * 4]).collect();
+        Some(parts.join(":"))
     }
 }
 

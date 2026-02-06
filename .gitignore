@@ -1,0 +1,23 @@
+# Build
+target/
+dist/
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AI
+.claude/
+
+# API
+zt-api/

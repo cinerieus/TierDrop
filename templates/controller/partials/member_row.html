@@ -20,9 +20,26 @@
     </td>
     <td>
         {% for ip in row.member.ip_assignments.iter() %}
+        {% if !ip.contains(':') %}
         <span class="tag">{{ ip }}</span>
+        {% endif %}
         {% endfor %}
-        {% if row.member.ip_assignments.is_empty() %}
+        {% for ip in row.member.ip_assignments.iter() %}
+        {% if ip.contains(':') %}
+        <span class="tag">{{ ip }}</span>
+        {% endif %}
+        {% endfor %}
+        {% match row.rfc4193_addr %}
+        {% when Some with (addr) %}
+        <span class="tag text-secondary">{{ addr }}</span>
+        {% when None %}
+        {% endmatch %}
+        {% match row.sixplane_addr %}
+        {% when Some with (addr) %}
+        <span class="tag text-secondary">{{ addr }}</span>
+        {% when None %}
+        {% endmatch %}
+        {% if row.member.ip_assignments.is_empty() && row.rfc4193_addr.is_none() && row.sixplane_addr.is_none() %}
         <span class="text-muted">-</span>
         {% endif %}
     </td>

@@ -30,12 +30,38 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="no_auto_assign_ips" value="on"
+                               {% if member.no_auto_assign_ips %}checked{% endif %}>
+                        Do Not Auto-Assign IPs
+                    </label>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">IP Assignments</label>
                     <input type="text" name="ip_assignments" class="form-input mono"
-                           value="{% for ip in member.ip_assignments.iter() %}{% if !loop.first %}, {% endif %}{{ ip }}{% endfor %}"
-                           placeholder="e.g. 10.0.0.1, 10.0.0.2">
-                    <small class="text-secondary">Comma-separated</small>
+                           value="{{ member.display_ip_assignments() }}"
+                           placeholder="e.g. 10.0.0.1, fd00::1">
+                    <small class="text-secondary">Comma-separated (IPv4 and IPv6)</small>
                 </div>
+
+                {% match rfc4193_addr %}
+                {% when Some with (addr) %}
+                <div class="form-group">
+                    <label class="form-label">RFC4193 Address</label>
+                    <div class="mono text-secondary" style="padding:6px 0;">{{ addr }}</div>
+                </div>
+                {% when None %}
+                {% endmatch %}
+
+                {% match sixplane_addr %}
+                {% when Some with (addr) %}
+                <div class="form-group">
+                    <label class="form-label">6PLANE Address</label>
+                    <div class="mono text-secondary" style="padding:6px 0;">{{ addr }}</div>
+                </div>
+                {% when None %}
+                {% endmatch %}
 
                 <div class="modal-section">
                     <div class="modal-section-title">Details</div>

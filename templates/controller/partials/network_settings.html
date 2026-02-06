@@ -1,5 +1,5 @@
 <div class="card-header">
-    <h3>Settings</h3>
+    <h3>General</h3>
     <button type="button" class="btn btn-primary btn-sm qr-join-btn" data-nwid="{{ network.display_id() }}">
         QR Join
     </button>
@@ -22,24 +22,6 @@
             <label class="toggle-label">
                 <input type="checkbox" name="private" {% if network.is_private() %}checked{% endif %}>
                 <span class="text-secondary">Require member authorization</span>
-            </label>
-        </span>
-
-        <span class="detail-label">Broadcast</span>
-        <span class="detail-value">
-            <label class="toggle-label">
-                <input type="checkbox" name="enable_broadcast"
-                       {% if network.broadcast_enabled() %}checked{% endif %}>
-                <span class="text-secondary">Enable ethernet broadcast</span>
-            </label>
-        </span>
-
-        <span class="detail-label">IPv4 Auto-Assign</span>
-        <span class="detail-value">
-            <label class="toggle-label">
-                <input type="checkbox" name="v4_auto_assign"
-                       {% if network.v4_auto_assign() %}checked{% endif %}>
-                <span class="text-secondary">Automatically assign from pools</span>
             </label>
         </span>
     </div>

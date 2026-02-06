@@ -38,6 +38,14 @@ pub fn build_router(state: AppState) -> Router {
             "/controller/{nwid}/settings",
             post(controller::update_settings),
         )
+        .route(
+            "/controller/{nwid}/assign-modes",
+            post(controller::update_assign_modes),
+        )
+        .route(
+            "/controller/{nwid}/broadcast-settings",
+            post(controller::update_broadcast_settings),
+        )
         .route("/controller/{nwid}/pools", post(controller::add_pool))
         .route(
             "/controller/{nwid}/pools/remove",
@@ -47,6 +55,11 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/controller/{nwid}/routes/remove",
             post(controller::remove_route),
+        )
+        .route("/controller/{nwid}/dns", post(controller::add_dns))
+        .route(
+            "/controller/{nwid}/dns/remove",
+            post(controller::remove_dns),
         )
         // Controller member actions
         .route(

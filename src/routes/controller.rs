@@ -14,13 +14,19 @@ use crate::zt::models::{ControllerMember, ControllerNetwork, ControllerRoute, Ip
 pub struct MemberDisplayRow {
     pub member: ControllerMember,
     pub name: String,
+    pub rfc4193_addr: Option<String>,
+    pub sixplane_addr: Option<String>,
 }
 
 /// Build enriched member rows from raw members + local names.
 fn enrich_members(
     members: &[ControllerMember],
     member_names: &std::collections::HashMap<String, String>,
+    network: &ControllerNetwork,
 ) -> Vec<MemberDisplayRow> {
+    let show_rfc4193 = network.v6_rfc4193();
+    let show_sixplane = network.v6_sixplane();
+
     members
         .iter()
         .map(|m| {
@@ -29,6 +35,8 @@ fn enrich_members(
                 .cloned()
                 .unwrap_or_default();
             MemberDisplayRow {
+                rfc4193_addr: if show_rfc4193 { m.rfc4193_address() } else { None },
+                sixplane_addr: if show_sixplane { m.sixplane_address() } else { None },
                 member: m.clone(),
                 name,
             }
@@ -69,6 +77,7 @@ pub struct CtrlNetworkSettingsPartial {
 #[template(path = "controller/partials/ip_pools.html")]
 pub struct CtrlIpPoolsPartial {
     pub nwid: String,
+    pub network: ControllerNetwork,
     pub pools: Vec<IpAssignmentPool>,
     pub routes: Vec<ControllerRoute>,
 }
@@ -86,6 +95,8 @@ pub struct CtrlMemberModalPartial {
     pub nwid: String,
     pub member: ControllerMember,
     pub name: String,
+    pub rfc4193_addr: Option<String>,
+    pub sixplane_addr: Option<String>,
 }
 
 // ---- Handlers: Pages ----
@@ -130,7 +141,7 @@ pub async fn controller_network_detail(
             let member_count = members.len();
             let pools = network.ip_assignment_pools.clone();
             let routes = network.routes.clone();
-            let rows = enrich_members(&members, &member_names);
+            let rows = enrich_members(&members, &member_names, &network);
             ControllerNetworkDetailTemplate {
                 nwid,
                 pools,
@@ -157,7 +168,7 @@ pub async fn controller_network_detail(
                 let member_count = members.len();
                 let pools = nw.ip_assignment_pools.clone();
                 let routes = nw.routes.clone();
-                let rows = enrich_members(&members, &member_names);
+                let rows = enrich_members(&members, &member_names, nw);
                 ControllerNetworkDetailTemplate {
                     nwid,
                     pools,
@@ -247,8 +258,6 @@ pub async fn delete_network(
 pub struct UpdateSettingsForm {
     pub name: Option<String>,
     pub private: Option<String>,
-    pub enable_broadcast: Option<String>,
-    pub v4_auto_assign: Option<String>,
 }
 
 pub async fn update_settings(
@@ -259,8 +268,6 @@ pub async fn update_settings(
     let body = serde_json::json!({
         "name": form.name.unwrap_or_default(),
         "private": form.private.is_some(),
-        "enableBroadcast": form.enable_broadcast.is_some(),
-        "v4AssignMode": { "zt": form.v4_auto_assign.is_some() },
     });
 
     let client = state.zt_client.read().await;
@@ -274,6 +281,98 @@ pub async fn update_settings(
         Some(Ok(network)) => {
             state.notify_poller();
             CtrlNetworkSettingsPartial { network }.into_response()
+        }
+        Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+        None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
+    }
+}
+
+// ---- Handlers: Broadcast Settings ----
+
+#[derive(Deserialize)]
+pub struct UpdateBroadcastForm {
+    pub enable_broadcast: Option<String>,
+    pub multicast_limit: Option<u32>,
+}
+
+pub async fn update_broadcast_settings(
+    State(state): State<AppState>,
+    Path(nwid): Path<String>,
+    Form(form): Form<UpdateBroadcastForm>,
+) -> Response {
+    let body = serde_json::json!({
+        "enableBroadcast": form.enable_broadcast.is_some(),
+        "multicastLimit": form.multicast_limit.unwrap_or(32),
+    });
+
+    let client = state.zt_client.read().await;
+    let result = match client.as_ref() {
+        Some(c) => Some(c.update_controller_network(&nwid, body).await),
+        None => None,
+    };
+    drop(client);
+
+    match result {
+        Some(Ok(network)) => {
+            state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
+            CtrlIpPoolsPartial {
+                nwid,
+                network,
+                pools,
+                routes,
+            }
+            .into_response()
+        }
+        Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+        None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
+    }
+}
+
+// ---- Handlers: Assignment Modes ----
+
+#[derive(Deserialize)]
+pub struct UpdateAssignModesForm {
+    pub v4_auto_assign: Option<String>,
+    pub v6_rfc4193: Option<String>,
+    pub v6_sixplane: Option<String>,
+    pub v6_auto_assign: Option<String>,
+}
+
+pub async fn update_assign_modes(
+    State(state): State<AppState>,
+    Path(nwid): Path<String>,
+    Form(form): Form<UpdateAssignModesForm>,
+) -> Response {
+    let body = serde_json::json!({
+        "v4AssignMode": { "zt": form.v4_auto_assign.is_some() },
+        "v6AssignMode": {
+            "rfc4193": form.v6_rfc4193.is_some(),
+            "6plane": form.v6_sixplane.is_some(),
+            "zt": form.v6_auto_assign.is_some()
+        },
+    });
+
+    let client = state.zt_client.read().await;
+    let result = match client.as_ref() {
+        Some(c) => Some(c.update_controller_network(&nwid, body).await),
+        None => None,
+    };
+    drop(client);
+
+    match result {
+        Some(Ok(network)) => {
+            state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
+            CtrlIpPoolsPartial {
+                nwid,
+                network,
+                pools,
+                routes,
+            }
+            .into_response()
         }
         Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
         None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
@@ -321,10 +420,13 @@ pub async fn add_pool(
     match client_ref.update_controller_network(&nwid, body).await {
         Ok(network) => {
             state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
             CtrlIpPoolsPartial {
                 nwid,
-                pools: network.ip_assignment_pools,
-                routes: network.routes,
+                network,
+                pools,
+                routes,
             }
             .into_response()
         }
@@ -368,10 +470,13 @@ pub async fn remove_pool(
     match client_ref.update_controller_network(&nwid, body).await {
         Ok(network) => {
             state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
             CtrlIpPoolsPartial {
                 nwid,
-                pools: network.ip_assignment_pools,
-                routes: network.routes,
+                network,
+                pools,
+                routes,
             }
             .into_response()
         }
@@ -420,10 +525,13 @@ pub async fn add_route(
     match client_ref.update_controller_network(&nwid, body).await {
         Ok(network) => {
             state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
             CtrlIpPoolsPartial {
                 nwid,
-                pools: network.ip_assignment_pools,
-                routes: network.routes,
+                network,
+                pools,
+                routes,
             }
             .into_response()
         }
@@ -465,10 +573,137 @@ pub async fn remove_route(
     match client_ref.update_controller_network(&nwid, body).await {
         Ok(network) => {
             state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
             CtrlIpPoolsPartial {
                 nwid,
-                pools: network.ip_assignment_pools,
-                routes: network.routes,
+                network,
+                pools,
+                routes,
+            }
+            .into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    }
+}
+
+// ---- Handlers: DNS ----
+
+#[derive(Deserialize)]
+pub struct AddDnsForm {
+    pub domain: Option<String>,
+    pub server: String,
+}
+
+pub async fn add_dns(
+    State(state): State<AppState>,
+    Path(nwid): Path<String>,
+    Form(form): Form<AddDnsForm>,
+) -> Response {
+    let client = state.zt_client.read().await;
+    let client_ref = match client.as_ref() {
+        Some(c) => c.clone(),
+        None => return (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
+    };
+    drop(client);
+
+    let current = match client_ref.get_controller_network(&nwid).await {
+        Ok(n) => n,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    };
+
+    let mut servers = current.dns.servers.clone();
+    let server = form.server.trim().to_string();
+    if !server.is_empty() && !servers.contains(&server) {
+        servers.push(server);
+    }
+
+    let domain = form.domain
+        .as_ref()
+        .map(|d| d.trim())
+        .filter(|d| !d.is_empty())
+        .unwrap_or(&current.dns.domain)
+        .to_string();
+
+    let body = serde_json::json!({
+        "dns": {
+            "domain": domain,
+            "servers": servers,
+        }
+    });
+
+    match client_ref.update_controller_network(&nwid, body).await {
+        Ok(network) => {
+            state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
+            CtrlIpPoolsPartial {
+                nwid,
+                network,
+                pools,
+                routes,
+            }
+            .into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct RemoveDnsForm {
+    pub index: usize,
+}
+
+pub async fn remove_dns(
+    State(state): State<AppState>,
+    Path(nwid): Path<String>,
+    Form(form): Form<RemoveDnsForm>,
+) -> Response {
+    let client = state.zt_client.read().await;
+    let client_ref = match client.as_ref() {
+        Some(c) => c.clone(),
+        None => return (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
+    };
+    drop(client);
+
+    let current = match client_ref.get_controller_network(&nwid).await {
+        Ok(n) => n,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    };
+
+    let servers: Vec<String> = current
+        .dns
+        .servers
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != form.index)
+        .map(|(_, s)| s.clone())
+        .collect();
+
+    // Clear domain if no servers left
+    let domain = if servers.is_empty() {
+        String::new()
+    } else {
+        current.dns.domain.clone()
+    };
+
+    let body = serde_json::json!({
+        "dns": {
+            "domain": domain,
+            "servers": servers,
+        }
+    });
+
+    match client_ref.update_controller_network(&nwid, body).await {
+        Ok(network) => {
+            state.notify_poller();
+            let pools = network.ip_assignment_pools.clone();
+            let routes = network.routes.clone();
+            CtrlIpPoolsPartial {
+                nwid,
+                network,
+                pools,
+                routes,
             }
             .into_response()
         }
@@ -494,6 +729,11 @@ pub async fn toggle_member_auth(
         Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
     };
 
+    let network = match client_ref.get_controller_network(&nwid).await {
+        Ok(n) => n,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    };
+
     let new_auth = !current.is_authorized();
     let body = serde_json::json!({"authorized": new_auth});
     match client_ref
@@ -508,7 +748,7 @@ pub async fn toggle_member_auth(
                 .map(|c| c.member_names.clone())
                 .unwrap_or_default();
             drop(config);
-            let rows = enrich_members(&[member], &member_names);
+            let rows = enrich_members(&[member], &member_names, &network);
             CtrlMemberRowPartial {
                 nwid,
                 row: rows.into_iter().next().unwrap(),
@@ -587,6 +827,11 @@ pub async fn add_member(
         .unwrap_or_default();
     drop(config);
 
+    let network = match client_ref.get_controller_network(&nwid).await {
+        Ok(n) => n,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    };
+
     let member_ids = client_ref.get_controller_members(&nwid).await;
     let fresh_members = match member_ids {
         Ok(ids) => {
@@ -603,7 +848,7 @@ pub async fn add_member(
     };
 
     let member_count = fresh_members.len();
-    let rows = enrich_members(&fresh_members, &member_names);
+    let rows = enrich_members(&fresh_members, &member_names, &network);
     CtrlMemberListPartial { nwid, rows, member_count }.into_response()
 }
 
@@ -625,6 +870,11 @@ pub async fn member_modal(
         Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
     };
 
+    let network = match client_ref.get_controller_network(&nwid).await {
+        Ok(n) => n,
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+    };
+
     let config = state.config.read().await;
     let name = config
         .as_ref()
@@ -632,10 +882,15 @@ pub async fn member_modal(
         .unwrap_or_default();
     drop(config);
 
+    let rfc4193_addr = if network.v6_rfc4193() { member.rfc4193_address() } else { None };
+    let sixplane_addr = if network.v6_sixplane() { member.sixplane_address() } else { None };
+
     CtrlMemberModalPartial {
         nwid,
         member,
         name,
+        rfc4193_addr,
+        sixplane_addr,
     }
     .into_response()
 }
@@ -647,6 +902,7 @@ pub struct UpdateMemberForm {
     pub name: Option<String>,
     pub authorized: Option<String>,
     pub active_bridge: Option<String>,
+    pub no_auto_assign_ips: Option<String>,
     pub ip_assignments: Option<String>,
 }
 
@@ -676,6 +932,7 @@ pub async fn update_member(
     let body = serde_json::json!({
         "authorized": form.authorized.is_some(),
         "activeBridge": form.active_bridge.is_some(),
+        "noAutoAssignIps": form.no_auto_assign_ips.is_some(),
         "ipAssignments": ip_list,
     });
 
@@ -711,6 +968,12 @@ pub async fn ctrl_member_list_partial(
     Path(nwid): Path<String>,
 ) -> impl IntoResponse {
     let zt = state.zt_state.read().await;
+    let network = zt
+        .controller_networks
+        .iter()
+        .find(|n| n.display_id() == nwid)
+        .cloned()
+        .unwrap_or_default();
     let members = zt
         .controller_members
         .get(&nwid)
@@ -726,6 +989,6 @@ pub async fn ctrl_member_list_partial(
     drop(config);
 
     let member_count = members.len();
-    let rows = enrich_members(&members, &member_names);
+    let rows = enrich_members(&members, &member_names, &network);
     CtrlMemberListPartial { nwid, rows, member_count }
 }

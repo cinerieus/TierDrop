@@ -1,71 +1,208 @@
 <div class="card-header">
-    <h3>IP Assignment &amp; Routes</h3>
+    <h3>Network</h3>
 </div>
 
-<h4 class="subsection-title">IP Assignment Pools</h4>
-{% if pools.is_empty() %}
-<p class="text-secondary mb-4">No IP pools configured. Add one to enable auto-assignment.</p>
-{% else %}
-<div class="table-wrap mb-4">
+<!-- ===== IPv4 Section ===== -->
+<h4 class="subsection-title">IPv4</h4>
+<form class="mb-3">
+    <label class="toggle-label">
+        <input type="checkbox" name="v4_auto_assign"
+               {% if network.v4_auto_assign() %}checked{% endif %}
+               hx-post="/controller/{{ nwid }}/assign-modes"
+               hx-target="#ip-assignment" hx-swap="innerHTML"
+               hx-include="[name='v6_rfc4193'],[name='v6_sixplane'],[name='v6_auto_assign']">
+        <span class="text-secondary">Auto-Assign from Range</span>
+    </label>
+</form>
+
+{% if network.v4_auto_assign() %}
+<div class="table-wrap mb-3">
     <table>
-        <thead>
-            <tr>
-                <th style="width:200px">Range Start</th>
-                <th style="width:200px">Range End</th>
-                <th class="col-action"></th>
-            </tr>
-        </thead>
+        <thead><tr><th style="width:200px">Range Start</th><th style="width:200px">Range End</th><th class="col-action"></th></tr></thead>
         <tbody>
-            {% for pool in pools.iter().enumerate() %}
+            {% for pool in pools %}
+            {% if pool.is_ipv4() %}
             <tr>
-                <td class="mono">{{ pool.1.display_start() }}</td>
-                <td class="mono">{{ pool.1.display_end() }}</td>
+                <td class="mono">{{ pool.display_start() }}</td>
+                <td class="mono">{{ pool.display_end() }}</td>
                 <td class="col-action">
                     <form hx-post="/controller/{{ nwid }}/pools/remove"
                           hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
-                        <input type="hidden" name="index" value="{{ pool.0 }}">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
                         <button type="submit" class="btn btn-danger btn-sm">Remove</button>
                     </form>
                 </td>
             </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
     </table>
 </div>
-{% endif %}
-
-<form class="inline-form mb-4"
-      hx-post="/controller/{{ nwid }}/pools"
+<form class="inline-form mb-4" hx-post="/controller/{{ nwid }}/pools"
       hx-target="#ip-assignment" hx-swap="innerHTML">
     <input type="text" name="range_start" class="form-input mono"
-           placeholder="Range start (e.g. 10.0.0.1)" required style="max-width:200px;">
+           placeholder="e.g. 10.0.0.1" required style="max-width:180px;">
     <input type="text" name="range_end" class="form-input mono"
-           placeholder="Range end (e.g. 10.0.0.254)" required style="max-width:200px;">
+           placeholder="e.g. 10.0.0.254" required style="max-width:180px;">
     <button type="submit" class="btn btn-primary btn-sm">Add Pool</button>
 </form>
+{% endif %}
 
+<!-- ===== IPv6 Section ===== -->
+<h4 class="subsection-title">IPv6</h4>
+<form class="mb-3">
+    <div class="toggle-grid">
+        <label class="toggle-label">
+            <input type="checkbox" name="v6_rfc4193"
+                   {% if network.v6_rfc4193() %}checked{% endif %}
+                   hx-post="/controller/{{ nwid }}/assign-modes"
+                   hx-target="#ip-assignment" hx-swap="innerHTML"
+                   hx-include="[name='v4_auto_assign'],[name='v6_sixplane'],[name='v6_auto_assign']">
+            <span class="text-secondary">ZeroTier RFC4193 (/128 for each device)</span>
+        </label>
+        <label class="toggle-label">
+            <input type="checkbox" name="v6_sixplane"
+                   {% if network.v6_sixplane() %}checked{% endif %}
+                   hx-post="/controller/{{ nwid }}/assign-modes"
+                   hx-target="#ip-assignment" hx-swap="innerHTML"
+                   hx-include="[name='v4_auto_assign'],[name='v6_rfc4193'],[name='v6_auto_assign']">
+            <span class="text-secondary">ZeroTier 6PLANE (/80 routable for each device)</span>
+        </label>
+        <label class="toggle-label">
+            <input type="checkbox" name="v6_auto_assign"
+                   {% if network.v6_zt_auto_assign() %}checked{% endif %}
+                   hx-post="/controller/{{ nwid }}/assign-modes"
+                   hx-target="#ip-assignment" hx-swap="innerHTML"
+                   hx-include="[name='v4_auto_assign'],[name='v6_rfc4193'],[name='v6_sixplane']">
+            <span class="text-secondary">Auto-Assign from Range</span>
+        </label>
+    </div>
+</form>
+
+{% if network.v6_zt_auto_assign() %}
+<div class="table-wrap mb-3">
+    <table>
+        <thead><tr><th style="width:200px">Range Start</th><th style="width:200px">Range End</th><th class="col-action"></th></tr></thead>
+        <tbody>
+            {% for pool in pools %}
+            {% if pool.is_ipv6() %}
+            <tr>
+                <td class="mono">{{ pool.display_start() }}</td>
+                <td class="mono">{{ pool.display_end() }}</td>
+                <td class="col-action">
+                    <form hx-post="/controller/{{ nwid }}/pools/remove"
+                          hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<form class="inline-form" hx-post="/controller/{{ nwid }}/pools"
+      hx-target="#ip-assignment" hx-swap="innerHTML">
+    <input type="text" name="range_start" class="form-input mono"
+           placeholder="e.g. fd00::1" required style="max-width:180px;">
+    <input type="text" name="range_end" class="form-input mono"
+           placeholder="e.g. fd00::ffff" required style="max-width:180px;">
+    <button type="submit" class="btn btn-primary btn-sm">Add Pool</button>
+</form>
+{% else %}
+<div class="mb-4"></div>
+{% endif %}
+
+<!-- ===== Managed Routes (always visible) ===== -->
 <h4 class="subsection-title">Managed Routes</h4>
 {% if routes.is_empty() %}
-<p class="text-secondary mb-4">No managed routes configured.</p>
+<p class="text-secondary mb-3">No managed routes configured.</p>
 {% else %}
-<div class="table-wrap mb-4">
+<div class="table-wrap mb-3">
     <table>
-        <thead>
-            <tr>
-                <th style="width:200px">Target</th>
-                <th style="width:200px">Via</th>
-                <th class="col-action"></th>
-            </tr>
-        </thead>
+        <thead><tr><th style="width:200px">Target</th><th style="width:200px">Via</th><th class="col-action"></th></tr></thead>
         <tbody>
-            {% for route in routes.iter().enumerate() %}
+            {% for route in routes %}
+            {% if route.is_ipv4() %}
             <tr>
-                <td class="mono">{{ route.1.display_target() }}</td>
-                <td class="mono">{{ route.1.display_via() }}</td>
+                <td class="mono">{{ route.display_target() }}</td>
+                <td class="mono">{{ route.display_via() }}</td>
                 <td class="col-action">
                     <form hx-post="/controller/{{ nwid }}/routes/remove"
                           hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
-                        <input type="hidden" name="index" value="{{ route.0 }}">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+            {% for route in routes %}
+            {% if route.is_ipv6() %}
+            <tr>
+                <td class="mono">{{ route.display_target() }}</td>
+                <td class="mono">{{ route.display_via() }}</td>
+                <td class="col-action">
+                    <form hx-post="/controller/{{ nwid }}/routes/remove"
+                          hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+<form class="inline-form mb-4" hx-post="/controller/{{ nwid }}/routes"
+      hx-target="#ip-assignment" hx-swap="innerHTML">
+    <input type="text" name="target" class="form-input mono"
+           placeholder="e.g. 10.0.0.0/24 or fd00::/64" required style="max-width:200px;">
+    <input type="text" name="via" class="form-input mono"
+           placeholder="Via (optional)" style="max-width:180px;">
+    <button type="submit" class="btn btn-primary btn-sm">Add Route</button>
+</form>
+
+<!-- ===== Multicast ===== -->
+<h4 class="subsection-title">Multicast</h4>
+<form class="toggle-grid">
+    <label class="toggle-label">
+        <input type="checkbox" name="enable_broadcast"
+               {% if network.broadcast_enabled() %}checked{% endif %}
+               hx-post="/controller/{{ nwid }}/broadcast-settings"
+               hx-target="#ip-assignment" hx-swap="innerHTML"
+               hx-include="[name='multicast_limit']">
+        <span class="text-secondary">Enable ethernet broadcast</span>
+    </label>
+    <label class="toggle-label">
+        <span class="text-secondary">Recipient limit</span>
+        <input type="number" name="multicast_limit" class="form-input" style="max-width:80px; margin-left:8px;"
+               value="{{ network.display_multicast_limit() }}" min="0"
+               hx-post="/controller/{{ nwid }}/broadcast-settings"
+               hx-target="#ip-assignment" hx-swap="innerHTML"
+               hx-trigger="change"
+               hx-include="[name='enable_broadcast']">
+    </label>
+</form>
+
+<!-- ===== DNS ===== -->
+<h4 class="subsection-title">DNS</h4>
+{% if !network.dns.servers.is_empty() %}
+<div class="table-wrap mb-3">
+    <table>
+        <thead><tr><th style="width:200px">Search Domain</th><th style="width:200px">Server</th><th class="col-action"></th></tr></thead>
+        <tbody>
+            {% for server in network.dns.servers.iter() %}
+            <tr>
+                <td class="mono">{% if loop.first %}{{ network.dns.domain }}{% endif %}</td>
+                <td class="mono">{{ server }}</td>
+                <td class="col-action">
+                    <form hx-post="/controller/{{ nwid }}/dns/remove"
+                          hx-target="#ip-assignment" hx-swap="innerHTML" style="display:inline;">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
                         <button type="submit" class="btn btn-danger btn-sm">Remove</button>
                     </form>
                 </td>
@@ -75,13 +212,12 @@
     </table>
 </div>
 {% endif %}
-
-<form class="inline-form"
-      hx-post="/controller/{{ nwid }}/routes"
+<form class="inline-form" hx-post="/controller/{{ nwid }}/dns"
       hx-target="#ip-assignment" hx-swap="innerHTML">
-    <input type="text" name="target" class="form-input mono"
-           placeholder="Target (e.g. 10.0.0.0/24)" required style="max-width:200px;">
-    <input type="text" name="via" class="form-input mono"
-           placeholder="Via (optional)" style="max-width:200px;">
-    <button type="submit" class="btn btn-primary btn-sm">Add Route</button>
+    <input type="text" name="domain" class="form-input mono"
+           placeholder="e.g. zt.example.com" style="max-width:180px;"
+           value="{{ network.dns.domain }}">
+    <input type="text" name="server" class="form-input mono"
+           placeholder="e.g. 10.0.0.1" required style="max-width:180px;">
+    <button type="submit" class="btn btn-primary btn-sm">Add Server</button>
 </form>
