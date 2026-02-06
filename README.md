@@ -52,6 +52,7 @@ TierDrop is a self-hosted web UI for managing ZeroTier networks through your loc
 | **Route Configuration** | Define network routes for traffic forwarding |
 | **DNS Configuration** | Set search domain and DNS servers for your network |
 | **Multicast Settings** | Enable ethernet broadcast and set recipient limits |
+| **Flow Rules Editor** | Dual-pane DSL editor with live JSON preview and syntax validation |
 | **Real-time Updates** | Live dashboard via Server-Sent Events (SSE) |
 | **Password Protection** | Optional authentication for the web interface |
 | **Single Binary** | No external dependencies, all assets embedded |
