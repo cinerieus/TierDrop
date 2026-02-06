@@ -47,8 +47,11 @@ TierDrop is a self-hosted web UI for managing ZeroTier networks through your loc
 |---------|-------------|
 | **Network Management** | Create, configure, and delete ZeroTier networks |
 | **Member Control** | Authorize members, assign IPs, set names, remove devices |
+| **IPv4 & IPv6 Support** | Auto-assign pools for both protocols, plus RFC4193 and 6PLANE modes |
 | **IP Pool Management** | Configure auto-assign IP ranges for your networks |
 | **Route Configuration** | Define network routes for traffic forwarding |
+| **DNS Configuration** | Set search domain and DNS servers for your network |
+| **Multicast Settings** | Enable ethernet broadcast and set recipient limits |
 | **Real-time Updates** | Live dashboard via Server-Sent Events (SSE) |
 | **Password Protection** | Optional authentication for the web interface |
 | **Single Binary** | No external dependencies, all assets embedded |
