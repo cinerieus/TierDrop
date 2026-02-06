@@ -145,6 +145,10 @@ pub struct Config {
     #[serde(default)]
     pub member_names: HashMap<String, String>,
     #[serde(default)]
+    pub member_descriptions: HashMap<String, String>,  // member address -> description
+    #[serde(default)]
+    pub network_descriptions: HashMap<String, String>,  // nwid -> description
+    #[serde(default)]
     pub rules_source: HashMap<String, String>,  // nwid -> DSL source
 }
 
@@ -312,6 +316,34 @@ impl AppState {
                 c.member_names.remove(address);
             } else {
                 c.member_names.insert(address.to_string(), name.to_string());
+            }
+            c.save()?;
+        }
+        Ok(())
+    }
+
+    /// Save or remove a member description. Empty description removes the entry.
+    pub async fn save_member_description(&self, address: &str, description: &str) -> Result<(), String> {
+        let mut cfg = self.config.write().await;
+        if let Some(ref mut c) = *cfg {
+            if description.is_empty() {
+                c.member_descriptions.remove(address);
+            } else {
+                c.member_descriptions.insert(address.to_string(), description.to_string());
+            }
+            c.save()?;
+        }
+        Ok(())
+    }
+
+    /// Save or remove a network description. Empty description removes the entry.
+    pub async fn save_network_description(&self, nwid: &str, description: &str) -> Result<(), String> {
+        let mut cfg = self.config.write().await;
+        if let Some(ref mut c) = *cfg {
+            if description.is_empty() {
+                c.network_descriptions.remove(nwid);
+            } else {
+                c.network_descriptions.insert(nwid.to_string(), description.to_string());
             }
             c.save()?;
         }

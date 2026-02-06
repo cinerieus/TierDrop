@@ -21,7 +21,12 @@
             {% for row in network_rows %}
             <tr>
                 <td><a href="/controller/{{ row.network.display_id() }}" class="mono">{{ row.network.display_id() }}</a></td>
-                <td>{{ row.network.display_name() }}</td>
+                <td>
+                    {{ row.network.display_name() }}
+                    {% if !row.description.is_empty() %}
+                    <div class="text-secondary" style="font-size: 0.8em; margin-top: 2px;">{{ row.description }}</div>
+                    {% endif %}
+                </td>
                 <td class="text-secondary">
                     <span class="badge {{ row.network.type_class() }}">{{ row.network.display_type() }}</span>
                 </td>

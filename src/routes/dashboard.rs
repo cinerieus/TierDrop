@@ -12,6 +12,7 @@ use crate::zt::models::{ControllerNetwork, NodeStatus};
 pub struct NetworkRow {
     pub network: ControllerNetwork,
     pub member_count: usize,
+    pub description: String,
 }
 
 #[derive(Template, WebTemplate)]
@@ -31,6 +32,14 @@ pub async fn dashboard(
     Extension(user): Extension<User>,
 ) -> impl IntoResponse {
     let zt = state.zt_state.read().await;
+    let cfg = state.config.read().await;
+
+    // Get network descriptions from config
+    let network_descriptions = cfg
+        .as_ref()
+        .map(|c| &c.network_descriptions)
+        .cloned()
+        .unwrap_or_default();
 
     // Filter networks based on user permissions
     let visible_networks: Vec<&ControllerNetwork> = zt
@@ -70,9 +79,14 @@ pub async fn dashboard(
                 .get(&nwid)
                 .map(|v| v.len())
                 .unwrap_or(0);
+            let description = network_descriptions
+                .get(&nwid)
+                .cloned()
+                .unwrap_or_default();
             NetworkRow {
                 network: (*net).clone(),
                 member_count,
+                description,
             }
         })
         .collect();
@@ -152,6 +166,14 @@ pub async fn dashboard_networks_partial(
     Extension(user): Extension<User>,
 ) -> impl IntoResponse {
     let zt = state.zt_state.read().await;
+    let cfg = state.config.read().await;
+
+    let network_descriptions = cfg
+        .as_ref()
+        .map(|c| &c.network_descriptions)
+        .cloned()
+        .unwrap_or_default();
+
     let network_rows: Vec<NetworkRow> = zt
         .controller_networks
         .iter()
@@ -163,9 +185,14 @@ pub async fn dashboard_networks_partial(
                 .get(&nwid)
                 .map(|v| v.len())
                 .unwrap_or(0);
+            let description = network_descriptions
+                .get(&nwid)
+                .cloned()
+                .unwrap_or_default();
             NetworkRow {
                 network: net.clone(),
                 member_count,
+                description,
             }
         })
         .collect();

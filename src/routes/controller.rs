@@ -51,14 +51,16 @@ fn default_compiled_rules() -> Vec<serde_json::Value> {
 pub struct MemberDisplayRow {
     pub member: ControllerMember,
     pub name: String,
+    pub description: String,
     pub rfc4193_addr: Option<String>,
     pub sixplane_addr: Option<String>,
 }
 
-/// Build enriched member rows from raw members + local names.
+/// Build enriched member rows from raw members + local names and descriptions.
 fn enrich_members(
     members: &[ControllerMember],
     member_names: &std::collections::HashMap<String, String>,
+    member_descriptions: &std::collections::HashMap<String, String>,
     network: &ControllerNetwork,
 ) -> Vec<MemberDisplayRow> {
     let show_rfc4193 = network.v6_rfc4193();
@@ -71,11 +73,16 @@ fn enrich_members(
                 .get(m.display_id())
                 .cloned()
                 .unwrap_or_default();
+            let description = member_descriptions
+                .get(m.display_id())
+                .cloned()
+                .unwrap_or_default();
             MemberDisplayRow {
                 rfc4193_addr: if show_rfc4193 { m.rfc4193_address() } else { None },
                 sixplane_addr: if show_sixplane { m.sixplane_address() } else { None },
                 member: m.clone(),
                 name,
+                description,
             }
         })
         .collect()
@@ -91,6 +98,7 @@ pub struct ControllerNetworkDetailTemplate {
     pub member_count: usize,
     pub authorized_count: usize,
     pub nwid: String,
+    pub description: String,
     pub pools: Vec<IpAssignmentPool>,
     pub routes: Vec<ControllerRoute>,
     pub rules_source: String,
@@ -120,6 +128,7 @@ pub struct CtrlMemberListPartial {
 #[template(path = "controller/partials/network_settings.html")]
 pub struct CtrlNetworkSettingsPartial {
     pub network: ControllerNetwork,
+    pub description: String,
     pub can_modify: bool,
 }
 
@@ -148,6 +157,7 @@ pub struct CtrlMemberModalPartial {
     pub nwid: String,
     pub member: ControllerMember,
     pub name: String,
+    pub description: String,
     pub rfc4193_addr: Option<String>,
     pub sixplane_addr: Option<String>,
     pub can_modify: bool,
@@ -202,9 +212,17 @@ pub async fn controller_network_detail(
         .as_ref()
         .map(|c| c.member_names.clone())
         .unwrap_or_default();
+    let member_descriptions = config
+        .as_ref()
+        .map(|c| c.member_descriptions.clone())
+        .unwrap_or_default();
     let rules_source = config
         .as_ref()
         .and_then(|c| c.rules_source.get(&nwid).cloned())
+        .unwrap_or_default();
+    let network_description = config
+        .as_ref()
+        .and_then(|c| c.network_descriptions.get(&nwid).cloned())
         .unwrap_or_default();
     drop(config);
 
@@ -220,9 +238,10 @@ pub async fn controller_network_detail(
             let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
             let pools = network.ip_assignment_pools.clone();
             let routes = network.routes.clone();
-            let rows = enrich_members(&members, &member_names, &network);
+            let rows = enrich_members(&members, &member_names, &member_descriptions, &network);
             ControllerNetworkDetailTemplate {
                 nwid,
+                description: network_description,
                 pools,
                 routes,
                 network,
@@ -255,9 +274,10 @@ pub async fn controller_network_detail(
                 let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
                 let pools = nw.ip_assignment_pools.clone();
                 let routes = nw.routes.clone();
-                let rows = enrich_members(&members, &member_names, nw);
+                let rows = enrich_members(&members, &member_names, &member_descriptions, nw);
                 ControllerNetworkDetailTemplate {
                     nwid,
+                    description: network_description,
                     pools,
                     routes,
                     network: nw.clone(),
@@ -390,6 +410,7 @@ pub async fn delete_network(
 #[derive(Deserialize)]
 pub struct UpdateSettingsForm {
     pub name: Option<String>,
+    pub description: Option<String>,
     pub private: Option<String>,
 }
 
@@ -402,6 +423,13 @@ pub async fn update_settings(
     // Check modify permission
     if !permissions::can_modify(&user, &nwid) {
         return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
+    // Save description locally
+    let description = form.description.as_deref().unwrap_or("").trim().to_string();
+    if let Err(e) = state.save_network_description(&nwid, &description).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save description: {}", e))
+            .into_response();
     }
 
     let body = serde_json::json!({
@@ -419,7 +447,7 @@ pub async fn update_settings(
     match result {
         Some(Ok(network)) => {
             state.notify_poller();
-            CtrlNetworkSettingsPartial { network, can_modify: true }.into_response()
+            CtrlNetworkSettingsPartial { network, description, can_modify: true }.into_response()
         }
         Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
         None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
@@ -939,8 +967,12 @@ pub async fn toggle_member_auth(
                 .as_ref()
                 .map(|c| c.member_names.clone())
                 .unwrap_or_default();
+            let member_descriptions = config
+                .as_ref()
+                .map(|c| c.member_descriptions.clone())
+                .unwrap_or_default();
             drop(config);
-            let rows = enrich_members(&[member], &member_names, &network);
+            let rows = enrich_members(&[member], &member_names, &member_descriptions, &network);
             CtrlMemberRowPartial {
                 nwid: nwid.clone(),
                 row: rows.into_iter().next().unwrap(),
@@ -1029,6 +1061,10 @@ pub async fn add_member(
         .as_ref()
         .map(|c| c.member_names.clone())
         .unwrap_or_default();
+    let member_descriptions = config
+        .as_ref()
+        .map(|c| c.member_descriptions.clone())
+        .unwrap_or_default();
     drop(config);
 
     let network = match client_ref.get_controller_network(&nwid).await {
@@ -1053,7 +1089,7 @@ pub async fn add_member(
 
     let member_count = fresh_members.len();
     let authorized_count = fresh_members.iter().filter(|m| m.is_authorized()).count();
-    let rows = enrich_members(&fresh_members, &member_names, &network);
+    let rows = enrich_members(&fresh_members, &member_names, &member_descriptions, &network);
     CtrlMemberListPartial {
         nwid: nwid.clone(),
         rows,
@@ -1098,6 +1134,10 @@ pub async fn member_modal(
         .as_ref()
         .and_then(|c| c.member_names.get(&member_id).cloned())
         .unwrap_or_default();
+    let description = config
+        .as_ref()
+        .and_then(|c| c.member_descriptions.get(&member_id).cloned())
+        .unwrap_or_default();
     drop(config);
 
     let rfc4193_addr = if network.v6_rfc4193() { member.rfc4193_address() } else { None };
@@ -1108,6 +1148,7 @@ pub async fn member_modal(
         nwid,
         member,
         name,
+        description,
         rfc4193_addr,
         sixplane_addr,
         can_modify,
@@ -1120,6 +1161,7 @@ pub async fn member_modal(
 #[derive(Deserialize)]
 pub struct UpdateMemberForm {
     pub name: Option<String>,
+    pub description: Option<String>,
     pub authorized: Option<String>,
     pub active_bridge: Option<String>,
     pub no_auto_assign_ips: Option<String>,
@@ -1140,6 +1182,13 @@ pub async fn update_member(
     let name = form.name.as_deref().unwrap_or("").trim().to_string();
     if let Err(e) = state.save_member_name(&member_id, &name).await {
         return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save name: {}", e))
+            .into_response();
+    }
+
+    // Save description locally
+    let description = form.description.as_deref().unwrap_or("").trim().to_string();
+    if let Err(e) = state.save_member_description(&member_id, &description).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save description: {}", e))
             .into_response();
     }
 
@@ -1216,11 +1265,15 @@ pub async fn ctrl_member_list_partial(
         .as_ref()
         .map(|c| c.member_names.clone())
         .unwrap_or_default();
+    let member_descriptions = config
+        .as_ref()
+        .map(|c| c.member_descriptions.clone())
+        .unwrap_or_default();
     drop(config);
 
     let member_count = members.len();
     let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
-    let rows = enrich_members(&members, &member_names, &network);
+    let rows = enrich_members(&members, &member_names, &member_descriptions, &network);
     CtrlMemberListPartial {
         nwid: nwid.clone(),
         rows,

@@ -18,6 +18,12 @@
                    value="{{ network.display_name() }}">
         </span>
 
+        <span class="detail-label">Description</span>
+        <span class="detail-value">
+            <textarea name="description" class="form-input" style="max-width:400px;" rows="2"
+                      placeholder="Optional description">{{ description }}</textarea>
+        </span>
+
         <span class="detail-label">Private</span>
         <span class="detail-value">
             <label class="toggle-label">
@@ -40,6 +46,12 @@
         <span class="detail-value">
             <input type="text" class="form-input" style="max-width:300px;" disabled
                    value="{{ network.display_name() }}">
+        </span>
+
+        <span class="detail-label">Description</span>
+        <span class="detail-value">
+            <textarea class="form-input" style="max-width:400px;" rows="2" disabled
+                      placeholder="Optional description">{{ description }}</textarea>
         </span>
 
         <span class="detail-label">Private</span>

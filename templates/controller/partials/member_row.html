@@ -7,7 +7,12 @@
             {{ row.member.display_id() }}
         </a>
     </td>
-    <td>{{ row.name }}</td>
+    <td>
+        {{ row.name }}
+        {% if !row.description.is_empty() %}
+        <div class="text-secondary" style="font-size: 0.8em; margin-top: 2px;">{{ row.description }}</div>
+        {% endif %}
+    </td>
     <td>
         {% if can_authorize %}
         <button

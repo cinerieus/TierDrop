@@ -14,6 +14,12 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-input" rows="2"
+                              placeholder="Optional description" {% if !can_modify %}disabled{% endif %}>{{ description }}</textarea>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">
                         <input type="checkbox" name="authorized" value="on"
                                {% if member.is_authorized() %}checked{% endif %} {% if !can_modify %}disabled{% endif %}>

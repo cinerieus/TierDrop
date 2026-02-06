@@ -171,6 +171,8 @@ pub async fn setup_submit(
         zt_base_url,
         member_names: std::collections::HashMap::new(),
         rules_source: std::collections::HashMap::new(),
+        member_descriptions: std::collections::HashMap::new(),
+        network_descriptions: std::collections::HashMap::new(),
     };
 
     if let Err(e) = state.configure(config).await {

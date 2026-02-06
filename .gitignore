@@ -23,4 +23,4 @@ Thumbs.db
 zt-api/
 
 # Certs
-docker/certs/
+docker/certs/*
