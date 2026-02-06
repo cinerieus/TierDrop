@@ -1,0 +1,57 @@
+# TierDrop with Nginx Reverse Proxy
+# Usage: docker compose -f docker-compose-nginx.yml up -d
+#
+# Before starting:
+# 1. Create certs directory: mkdir -p certs
+# 2. Add your TLS certificates:
+#    - certs/fullchain.pem (certificate + intermediates)
+#    - certs/privkey.pem (private key)
+#
+# For self-signed certs (testing only):
+#   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#     -keyout certs/privkey.pem -out certs/fullchain.pem \
+#     -subj "/CN=tierdrop.local"
+
+services:
+  tierdrop:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: tierdrop
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "9993:9993/udp"
+    volumes:
+      - zerotier-data:/var/lib/zerotier-one
+      - tierdrop-data:/root/.local/share/tierdrop
+    environment:
+      - TIERDROP_BIND=0.0.0.0:8000
+    restart: unless-stopped
+    networks:
+      - tierdrop-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: tierdrop-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - tierdrop
+    restart: unless-stopped
+    networks:
+      - tierdrop-net
+
+networks:
+  tierdrop-net:
+    driver: bridge
+
+volumes:
+  zerotier-data:
+  tierdrop-data:

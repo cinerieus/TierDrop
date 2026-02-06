@@ -93,6 +93,7 @@ pub struct ControllerNetworkDetailTemplate {
     pub routes: Vec<ControllerRoute>,
     pub rules_source: String,
     pub is_htmx: bool,
+    pub version: &'static str,
 }
 
 // ---- Partial Templates ----
@@ -205,6 +206,7 @@ pub async fn controller_network_detail(
                 authorized_count,
                 rules_source,
                 is_htmx: false,
+                version: crate::VERSION,
             }
             .into_response()
         }
@@ -236,6 +238,7 @@ pub async fn controller_network_detail(
                     authorized_count,
                     rules_source,
                     is_htmx: false,
+                    version: crate::VERSION,
                 }
                 .into_response()
             } else {

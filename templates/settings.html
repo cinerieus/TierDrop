@@ -2,6 +2,8 @@
 
 {% block title %}TierDrop - Settings{% endblock %}
 
+{% block version %}{{ version }}{% endblock %}
+
 {% block content %}
 <div class="flex items-center justify-between mb-2">
     <a href="/" class="back-link" style="margin-bottom:0">&larr; Dashboard</a>
@@ -13,11 +15,41 @@
 
 <!-- Tab Bar -->
 <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('backup')">Backup / Restore</button>
+    <button class="tab-btn active" onclick="switchTab('user')">User</button>
+    <button class="tab-btn" onclick="switchTab('backup')">Backup / Restore</button>
+</div>
+
+<!-- User Tab -->
+<div id="tab-user" class="tab-content active">
+    <div class="card">
+        <h3 class="settings-section-title">Change Password</h3>
+
+        <form method="POST" action="/settings/password" class="settings-form" id="password-form"
+              hx-post="/settings/password" hx-target="#password-result" hx-swap="innerHTML">
+            <div class="form-group">
+                <label for="current_password">Current Password</label>
+                <input type="password" id="current_password" name="current_password" class="form-input" required autocomplete="current-password">
+            </div>
+            <div class="form-group">
+                <label for="new_password">New Password</label>
+                <input type="password" id="new_password" name="new_password" class="form-input" required autocomplete="new-password" minlength="4">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm New Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input" required autocomplete="new-password" minlength="4">
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <span class="htmx-hide-on-request">Change Password</span><span class="spinner htmx-indicator"></span>
+            </button>
+        </form>
+
+        <div id="password-result"></div>
+    </div>
 </div>
 
 <!-- Backup Tab -->
-<div id="tab-backup" class="tab-content active">
+<div id="tab-backup" class="tab-content">
     <!-- Export Section -->
     <div class="card">
         <h3 class="settings-section-title">Export Backup</h3>

@@ -53,6 +53,10 @@
         <main class="main-content">
             {% block content %}{% endblock %}
         </main>
+
+        <footer class="app-footer">
+            <span>TierDrop v{% block version %}{% endblock %}</span>
+        </footer>
     </div>
     <script>
         function toggleTheme() {

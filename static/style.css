@@ -210,6 +210,15 @@ a:hover { color: var(--orange-hover); }
     margin: 0 auto;
 }
 
+/* ---- App Footer ---- */
+.app-footer {
+    padding: 16px 24px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+}
+
 /* ---- Back Link ---- */
 .back-link {
     display: inline-flex;
@@ -1247,6 +1256,26 @@ a.node-link:hover {
 .restore-result .restore-hint {
     font-size: 0.85rem;
     color: var(--text-muted);
+}
+
+/* Password change result */
+.password-result {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-sm);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.password-result.success {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: var(--green);
+}
+
+.password-result.error {
+    background: rgba(229, 57, 53, 0.1);
+    border: 1px solid rgba(229, 57, 53, 0.3);
+    color: var(--red);
 }
 
 /* Top bar settings link */

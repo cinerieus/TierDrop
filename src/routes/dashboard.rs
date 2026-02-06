@@ -21,6 +21,7 @@ pub struct DashboardTemplate {
     pub total_members: usize,
     pub authorized_members: usize,
     pub error: Option<String>,
+    pub version: &'static str,
 }
 
 pub async fn dashboard(State(state): State<AppState>) -> impl IntoResponse {
@@ -55,6 +56,7 @@ pub async fn dashboard(State(state): State<AppState>) -> impl IntoResponse {
         total_members,
         authorized_members,
         error: zt.error.clone(),
+        version: crate::VERSION,
     }
 }
 

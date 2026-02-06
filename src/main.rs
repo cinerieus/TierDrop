@@ -6,6 +6,9 @@ mod sse;
 mod state;
 mod zt;
 
+/// Application version from Cargo.toml
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 use std::net::SocketAddr;
 use tracing_subscriber::EnvFilter;
 
@@ -50,7 +53,7 @@ async fn main() {
         std::process::exit(1);
     });
 
-    println!("TierDrop listening on http://{}", addr);
+    println!("TierDrop v{} listening on http://{}", VERSION, addr);
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
@@ -59,8 +62,42 @@ async fn main() {
             std::process::exit(1);
         });
 
-    axum::serve(listener, app).await.unwrap_or_else(|e| {
-        eprintln!("Server error: {}", e);
-        std::process::exit(1);
-    });
+    // Graceful shutdown handling
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("Server error: {}", e);
+            std::process::exit(1);
+        });
+
+    tracing::info!("Shutdown complete");
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received Ctrl+C, shutting down...");
+        }
+        _ = terminate => {
+            tracing::info!("Received SIGTERM, shutting down...");
+        }
+    }
 }

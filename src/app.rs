@@ -6,7 +6,7 @@ use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
 use crate::assets::serve_static;
 use crate::auth;
-use crate::routes::{backup, controller, dashboard, settings};
+use crate::routes::{backup, controller, dashboard, health, settings};
 use crate::sse;
 use crate::state::AppState;
 
@@ -14,7 +14,7 @@ pub fn build_router(state: AppState) -> Router {
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false) // Allow HTTP for local use
-        .with_expiry(Expiry::OnInactivity(Duration::hours(24)));
+        .with_expiry(Expiry::OnInactivity(Duration::minutes(30)));
 
     // Routes that require authentication
     let protected = Router::new()
@@ -93,6 +93,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Settings and backup
         .route("/settings", get(settings::settings_page))
+        .route("/settings/password", post(settings::change_password))
         .route("/settings/backup/export", post(backup::export_backup))
         .route("/settings/backup/restore", post(backup::restore_backup))
         .layer(middleware::from_fn_with_state(
@@ -102,6 +103,7 @@ pub fn build_router(state: AppState) -> Router {
 
     // Public routes
     let public = Router::new()
+        .route("/health", get(health::health_check))
         .route("/setup", get(auth::setup_page))
         .route("/setup", post(auth::setup_submit))
         .route("/login", get(auth::login_page))
