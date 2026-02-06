@@ -230,7 +230,7 @@ TierDrop supports multiple user accounts with granular access control:
 | **Read** | View network details, members, and settings |
 | **Authorize** | Authorize/deauthorize members |
 | **Modify** | Edit network settings, member IPs, routes, etc. |
-| **Delete** | Remove members from networks |
+| **Delete** | Remove the network |
 
 Permissions are assigned per-network, allowing fine-grained access control. The first user created during setup is always an admin.
 
