@@ -1,7 +1,8 @@
 /* ============================================
-   TierDrop — Orange & Black Theme
+   TierDrop — Orange Accent Theme
    ============================================ */
 
+/* ---- Dark Theme (Default) ---- */
 :root {
     --bg: #0a0a0a;
     --bg-surface: #161616;
@@ -28,6 +29,38 @@
     --radius-sm: 4px;
     --top-bar-height: 56px;
     --transition: 150ms ease;
+
+    --topbar-bg: #111;
+    --modal-backdrop: rgba(0, 0, 0, 0.7);
+    --row-hover: rgba(255, 255, 255, 0.02);
+}
+
+/* ---- Light Theme ---- */
+[data-theme="light"] {
+    --bg: #f5f5f5;
+    --bg-surface: #ffffff;
+    --bg-elevated: #ffffff;
+    --bg-input: #ffffff;
+    --border: #e0e0e0;
+    --border-light: #d0d0d0;
+
+    --orange: #e67300;
+    --orange-hover: #ff8c1a;
+    --orange-dim: rgba(230, 115, 0, 0.12);
+    --orange-glow: rgba(230, 115, 0, 0.25);
+
+    --text: #1a1a1a;
+    --text-secondary: #666;
+    --text-muted: #999;
+    --text-on-orange: #ffffff;
+
+    --green: #2e7d32;
+    --red: #c62828;
+    --yellow: #ef6c00;
+
+    --topbar-bg: #ffffff;
+    --modal-backdrop: rgba(0, 0, 0, 0.4);
+    --row-hover: rgba(0, 0, 0, 0.02);
 }
 
 /* ---- Reset & Base ---- */
@@ -59,7 +92,7 @@ a:hover { color: var(--orange-hover); }
 /* ---- Top Bar ---- */
 .top-bar {
     height: var(--top-bar-height);
-    background: #111;
+    background: var(--topbar-bg);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -110,6 +143,55 @@ a:hover { color: var(--orange-hover); }
 
 .top-bar-logout:hover {
     color: var(--red);
+}
+
+.top-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* ---- Theme Toggle ---- */
+.theme-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+}
+
+.theme-toggle:hover {
+    color: var(--orange);
+    background: var(--orange-dim);
+}
+
+.theme-toggle svg {
+    width: 18px;
+    height: 18px;
+}
+
+.theme-toggle .icon-sun,
+.theme-toggle .icon-moon {
+    display: none;
+}
+
+/* Show moon in dark mode (click to switch to light) */
+:root .theme-toggle .icon-moon {
+    display: block;
+}
+
+/* Show sun in light mode (click to switch to dark) */
+[data-theme="light"] .theme-toggle .icon-sun {
+    display: block;
+}
+
+[data-theme="light"] .theme-toggle .icon-moon {
+    display: none;
 }
 
 /* ---- Main Content ---- */
@@ -256,7 +338,7 @@ tbody td {
     color: var(--text);
 }
 
-tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+tbody tr:hover { background: var(--row-hover); }
 tbody tr:last-child td { border-bottom: none; }
 
 th.col-action,
@@ -720,7 +802,7 @@ td.col-action {
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--modal-backdrop);
     z-index: 200;
     display: flex;
     align-items: center;
