@@ -35,6 +35,7 @@
 {% endif %}
 
 <div class="mt-4">
+    {% if can_authorize %}
     <form class="inline-form"
           hx-post="/controller/{{ nwid }}/members/add"
           hx-target="#member-list"
@@ -45,4 +46,12 @@
                style="max-width: 200px;">
         <button type="submit" class="btn btn-primary btn-sm"><span class="htmx-hide-on-request">Add Member</span><span class="spinner htmx-indicator"></span></button>
     </form>
+    {% else %}
+    <form class="inline-form" style="opacity: 0.5;">
+        <input type="text" class="form-input mono"
+               placeholder="Node ID (10-char hex)" disabled
+               style="max-width: 200px; cursor: not-allowed;">
+        <button type="button" class="btn btn-primary btn-sm" disabled style="cursor: not-allowed;" title="No permission">Add Member</button>
+    </form>
+    {% endif %}
 </div>

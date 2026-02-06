@@ -9,6 +9,7 @@
     </td>
     <td>{{ row.name }}</td>
     <td>
+        {% if can_authorize %}
         <button
             class="btn btn-sm {{ row.member.auth_class() }}"
             hx-post="/controller/{{ nwid }}/members/{{ row.member.display_id() }}/authorize"
@@ -17,6 +18,11 @@
         >
             {{ row.member.auth_label() }}
         </button>
+        {% else %}
+        <button class="btn btn-sm {{ row.member.auth_class() }}" disabled style="opacity: 0.5; cursor: not-allowed;" title="No permission">
+            {{ row.member.auth_label() }}
+        </button>
+        {% endif %}
     </td>
     <td>
         {% for ip in row.member.ip_assignments.iter() %}
@@ -45,6 +51,7 @@
     </td>
     <td class="mono text-secondary">{{ row.member.display_version() }}</td>
     <td class="col-action">
+        {% if can_modify %}
         <button
             class="btn btn-danger btn-sm"
             hx-delete="/controller/{{ nwid }}/members/{{ row.member.display_id() }}"
@@ -54,5 +61,10 @@
         >
             Remove
         </button>
+        {% else %}
+        <button class="btn btn-danger btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="No permission">
+            Remove
+        </button>
+        {% endif %}
     </td>
 </tr>

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use tokio::sync::{broadcast, Notify, RwLock};
 use tokio::time::Duration;
 
@@ -10,6 +11,95 @@ use crate::zt::models::ZtState;
 
 const APP_NAME: &str = "tierdrop";
 const CONFIG_FILENAME: &str = "config.json";
+
+/// Per-network permissions for a user
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NetworkPermissions {
+    pub read: bool,      // Can view network and members
+    pub authorize: bool, // Can authorize/deauthorize members
+    pub modify: bool,    // Can edit network settings, IP pools, routes
+    pub delete: bool,    // Can delete network or remove members
+}
+
+impl NetworkPermissions {
+    /// Full permissions (all true)
+    pub fn full() -> Self {
+        Self {
+            read: true,
+            authorize: true,
+            modify: true,
+            delete: true,
+        }
+    }
+
+    /// Check if user has any permission on this network
+    pub fn has_any(&self) -> bool {
+        self.read || self.authorize || self.modify || self.delete
+    }
+}
+
+/// A user account
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct User {
+    pub id: u64,
+    pub username: String,
+    pub password_hash: String,
+    pub is_admin: bool,
+    #[serde(default)]
+    pub network_permissions: HashMap<String, NetworkPermissions>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl User {
+    /// Create a new admin user with specified ID
+    pub fn new_admin(id: u64, username: String, password_hash: String) -> Self {
+        Self {
+            id,
+            username,
+            password_hash,
+            is_admin: true,
+            network_permissions: HashMap::new(),
+            created_at: Utc::now(),
+        }
+    }
+
+    /// Create a new regular user with specified ID
+    pub fn new(id: u64, username: String, password_hash: String, is_admin: bool) -> Self {
+        Self {
+            id,
+            username,
+            password_hash,
+            is_admin,
+            network_permissions: HashMap::new(),
+            created_at: Utc::now(),
+        }
+    }
+
+    /// Get permissions for a specific network
+    pub fn get_network_permissions(&self, nwid: &str) -> NetworkPermissions {
+        if self.is_admin {
+            NetworkPermissions::full()
+        } else {
+            self.network_permissions.get(nwid).cloned().unwrap_or_default()
+        }
+    }
+
+    /// Check if user can access any network (for dashboard visibility)
+    pub fn can_access_any_network(&self) -> bool {
+        if self.is_admin {
+            return true;
+        }
+        self.network_permissions.values().any(|p| p.has_any())
+    }
+
+    /// Count networks user has access to
+    pub fn accessible_network_count(&self) -> usize {
+        if self.is_admin {
+            return usize::MAX; // Shown as "All" in UI
+        }
+        self.network_permissions.values().filter(|p| p.has_any()).count()
+    }
+}
 
 /// Returns the platform-appropriate data directory:
 /// - Linux: ~/.local/share/tierdrop/
@@ -27,8 +117,18 @@ fn config_path() -> PathBuf {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Config {
-    pub username: String,
-    pub password_hash: String,
+    // Legacy fields (kept for backwards compatibility during migration)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_hash: Option<String>,
+
+    // New multi-user support
+    #[serde(default)]
+    pub users: Vec<User>,
+    #[serde(default = "default_next_user_id")]
+    pub next_user_id: u64,
+
     pub zt_token: String,
     #[serde(default = "default_zt_base_url")]
     pub zt_base_url: String,
@@ -36,6 +136,10 @@ pub struct Config {
     pub member_names: HashMap<String, String>,
     #[serde(default)]
     pub rules_source: HashMap<String, String>,  // nwid -> DSL source
+}
+
+fn default_next_user_id() -> u64 {
+    1
 }
 
 fn default_zt_base_url() -> String {
@@ -49,7 +153,31 @@ impl Config {
             return None;
         }
         let data = std::fs::read_to_string(&path).ok()?;
-        serde_json::from_str(&data).ok()
+        let mut config: Config = serde_json::from_str(&data).ok()?;
+
+        // Migration: if old username/password_hash exist but no users, create admin
+        if config.users.is_empty() {
+            if let (Some(username), Some(password_hash)) = (&config.username, &config.password_hash) {
+                let admin = User::new_admin(config.next_user_id, username.clone(), password_hash.clone());
+                config.next_user_id += 1;
+                config.users.push(admin);
+                // Clear legacy fields
+                config.username = None;
+                config.password_hash = None;
+                // Save migrated config
+                let _ = config.save();
+            }
+        }
+
+        // Migration: ensure next_user_id is greater than all existing user IDs
+        if let Some(max_id) = config.users.iter().map(|u| u.id).max() {
+            if config.next_user_id <= max_id {
+                config.next_user_id = max_id + 1;
+                let _ = config.save();
+            }
+        }
+
+        Some(config)
     }
 
     pub fn save(&self) -> Result<(), String> {
@@ -62,6 +190,41 @@ impl Config {
         std::fs::write(&path, json)
             .map_err(|e| format!("Failed to write config {:?}: {}", path, e))?;
         Ok(())
+    }
+
+    /// Find a user by username
+    pub fn find_user_by_username(&self, username: &str) -> Option<&User> {
+        self.users.iter().find(|u| u.username == username)
+    }
+
+    /// Find a user by ID
+    pub fn find_user_by_id(&self, id: u64) -> Option<&User> {
+        self.users.iter().find(|u| u.id == id)
+    }
+
+    /// Find a user by ID (mutable)
+    pub fn find_user_by_id_mut(&mut self, id: u64) -> Option<&mut User> {
+        self.users.iter_mut().find(|u| u.id == id)
+    }
+
+    /// Add a new user with auto-generated ID
+    pub fn add_user(&mut self, username: String, password_hash: String, is_admin: bool) -> &User {
+        let user = User::new(self.next_user_id, username, password_hash, is_admin);
+        self.next_user_id += 1;
+        self.users.push(user);
+        self.users.last().unwrap()
+    }
+
+    /// Remove a user by ID (returns true if removed)
+    pub fn remove_user(&mut self, id: u64) -> bool {
+        let len_before = self.users.len();
+        self.users.retain(|u| u.id != id);
+        self.users.len() < len_before
+    }
+
+    /// Check if there's at least one admin user
+    pub fn has_admin(&self) -> bool {
+        self.users.iter().any(|u| u.is_admin)
     }
 }
 

@@ -1,0 +1,52 @@
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Admin</th>
+            <th>Networks</th>
+            <th class="actions-col">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td class="mono">{{ user.id }}</td>
+            <td class="mono">{{ user.username }}</td>
+            <td>
+                {% if user.is_admin %}
+                <span class="status-badge status-online">Yes</span>
+                {% else %}
+                <span class="status-badge status-offline">No</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if user.is_admin %}
+                <span class="text-muted">All</span>
+                {% else %}
+                {{ user.accessible_network_count() }}
+                {% endif %}
+            </td>
+            <td class="actions-col">
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-primary"
+                            hx-get="/settings/users/{{ user.id }}/modal"
+                            hx-target="body"
+                            hx-swap="beforeend">
+                        Edit
+                    </button>
+                    {% if user.id != current_user_id %}
+                    <button class="btn btn-sm btn-danger"
+                            hx-delete="/settings/users/{{ user.id }}"
+                            hx-target="#users-list"
+                            hx-swap="innerHTML"
+                            hx-confirm="Are you sure you want to delete user '{{ user.username }}'?">
+                        Delete
+                    </button>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

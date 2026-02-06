@@ -1,0 +1,141 @@
+<div class="modal-backdrop" onclick="closeUserModal()"></div>
+<div class="modal" id="user-modal">
+    <div class="modal-header">
+        <h3>Edit User: {{ user.username }}</h3>
+        <button class="modal-close" onclick="closeUserModal()">&times;</button>
+    </div>
+
+    <form hx-post="/settings/users/{{ user.id }}/update"
+          hx-target="#users-list"
+          hx-swap="innerHTML"
+          id="user-form">
+
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="edit_username">Username</label>
+                <input type="text" id="edit_username" name="username" class="form-input"
+                       value="{{ user.username }}" required autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label for="edit_password">New Password</label>
+                <input type="password" id="edit_password" name="password" class="form-input"
+                       placeholder="Leave blank to keep current" autocomplete="new-password">
+                <small class="form-hint">Leave blank to keep current password</small>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="is_admin" value="true" id="admin-checkbox"
+                           {% if user.is_admin %}checked{% endif %}
+                           onchange="togglePermissionsTable()">
+                    <span>Admin (full access to all networks)</span>
+                </label>
+            </div>
+
+            <div class="form-group" id="permissions-section">
+                <label>Network Permissions</label>
+                <small class="form-hint" id="permissions-hint">
+                    {% if user.is_admin %}
+                    Admin users have full access to all networks
+                    {% else %}
+                    Set permissions for each network
+                    {% endif %}
+                </small>
+
+                <div class="permissions-table-wrapper" id="permissions-table" {% if user.is_admin %}style="opacity: 0.5; pointer-events: none;"{% endif %}>
+                    <table class="permissions-table">
+                        <thead>
+                            <tr>
+                                <th>Network</th>
+                                <th title="Can view network and members">Read</th>
+                                <th title="Can authorize/deauthorize members">Auth</th>
+                                <th title="Can edit network settings">Mod</th>
+                                <th title="Can delete network or remove members">Del</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for network in networks %}
+                            {% let nwid = network.display_id() %}
+                            {% let perms = user.get_network_permissions(nwid) %}
+                            <tr>
+                                <td class="mono">{{ network.display_name() }}</td>
+                                <td>
+                                    <input type="checkbox" name="perm_{{ nwid }}_read"
+                                           {% if perms.read %}checked{% endif %}
+                                           class="perm-checkbox">
+                                </td>
+                                <td>
+                                    <input type="checkbox" name="perm_{{ nwid }}_authorize"
+                                           {% if perms.authorize %}checked{% endif %}
+                                           class="perm-checkbox">
+                                </td>
+                                <td>
+                                    <input type="checkbox" name="perm_{{ nwid }}_modify"
+                                           {% if perms.modify %}checked{% endif %}
+                                           class="perm-checkbox">
+                                </td>
+                                <td>
+                                    <input type="checkbox" name="perm_{{ nwid }}_delete"
+                                           {% if perms.delete %}checked{% endif %}
+                                           class="perm-checkbox">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if networks.is_empty() %}
+                            <tr>
+                                <td colspan="5" class="text-muted text-center">No networks found</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-danger" onclick="closeUserModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">
+                <span class="htmx-hide-on-request">Save Changes</span>
+                <span class="spinner htmx-indicator"></span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function closeUserModal() {
+    var modal = document.getElementById('user-modal');
+    var backdrop = document.querySelector('.modal-backdrop');
+    if (modal) modal.remove();
+    if (backdrop) backdrop.remove();
+}
+
+function togglePermissionsTable() {
+    var isAdmin = document.getElementById('admin-checkbox').checked;
+    var table = document.getElementById('permissions-table');
+    var hint = document.getElementById('permissions-hint');
+
+    if (isAdmin) {
+        table.style.opacity = '0.5';
+        table.style.pointerEvents = 'none';
+        hint.textContent = 'Admin users have full access to all networks';
+    } else {
+        table.style.opacity = '1';
+        table.style.pointerEvents = 'auto';
+        hint.textContent = 'Set permissions for each network';
+    }
+}
+
+// Listen for modal close trigger from HTMX
+document.body.addEventListener('closeModal', function() {
+    closeUserModal();
+});
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeUserModal();
+    }
+});
+</script>

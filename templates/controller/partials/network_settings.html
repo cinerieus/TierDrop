@@ -4,6 +4,7 @@
 <div class="card-header">
     <h3>General</h3>
 </div>
+{% if can_modify %}
 <form hx-post="/controller/{{ network.display_id() }}/settings"
       hx-target="#network-settings"
       hx-swap="innerHTML">
@@ -29,3 +30,28 @@
         <button type="submit" class="btn btn-primary btn-sm"><span class="htmx-hide-on-request">Apply</span><span class="spinner htmx-indicator"></span></button>
     </div>
 </form>
+{% else %}
+<div style="opacity: 0.5; pointer-events: none;">
+    <div class="detail-grid" style="grid-template-columns: 160px 1fr; row-gap: 12px;">
+        <span class="detail-label">Network ID</span>
+        <span class="detail-value mono">{{ network.display_id() }}</span>
+
+        <span class="detail-label">Name</span>
+        <span class="detail-value">
+            <input type="text" class="form-input" style="max-width:300px;" disabled
+                   value="{{ network.display_name() }}">
+        </span>
+
+        <span class="detail-label">Private</span>
+        <span class="detail-value">
+            <label class="toggle-label">
+                <input type="checkbox" disabled {% if network.is_private() %}checked{% endif %}>
+                <span class="text-secondary">Require member authorization</span>
+            </label>
+        </span>
+    </div>
+    <div class="mt-4">
+        <button type="button" class="btn btn-primary btn-sm" disabled title="No permission">Apply</button>
+    </div>
+</div>
+{% endif %}

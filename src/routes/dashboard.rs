@@ -2,8 +2,10 @@ use askama::Template;
 use askama_web::WebTemplate;
 use axum::extract::State;
 use axum::response::IntoResponse;
+use axum::Extension;
 
-use crate::state::AppState;
+use crate::permissions;
+use crate::state::{AppState, User};
 use crate::zt::models::{ControllerNetwork, NodeStatus};
 
 /// Network row data passed to the dashboard template
@@ -24,17 +26,42 @@ pub struct DashboardTemplate {
     pub version: &'static str,
 }
 
-pub async fn dashboard(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn dashboard(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+) -> impl IntoResponse {
     let zt = state.zt_state.read().await;
-    let total_members: usize = zt.controller_members.values().map(|v| v.len()).sum();
-    let authorized_members: usize = zt
-        .controller_members
-        .values()
-        .flat_map(|v| v.iter())
+
+    // Filter networks based on user permissions
+    let visible_networks: Vec<&ControllerNetwork> = zt
+        .controller_networks
+        .iter()
+        .filter(|net| permissions::can_read(&user, net.display_id()))
+        .collect();
+
+    // Calculate member stats only for visible networks
+    let total_members: usize = visible_networks
+        .iter()
+        .map(|net| {
+            zt.controller_members
+                .get(net.display_id())
+                .map(|v| v.len())
+                .unwrap_or(0)
+        })
+        .sum();
+    let authorized_members: usize = visible_networks
+        .iter()
+        .flat_map(|net| {
+            zt.controller_members
+                .get(net.display_id())
+                .map(|v| v.iter())
+                .into_iter()
+                .flatten()
+        })
         .filter(|m| m.is_authorized())
         .count();
-    let network_rows: Vec<NetworkRow> = zt
-        .controller_networks
+
+    let network_rows: Vec<NetworkRow> = visible_networks
         .iter()
         .map(|net| {
             let nwid = net.display_id().to_string();
@@ -44,14 +71,14 @@ pub async fn dashboard(State(state): State<AppState>) -> impl IntoResponse {
                 .map(|v| v.len())
                 .unwrap_or(0);
             NetworkRow {
-                network: net.clone(),
+                network: (*net).clone(),
                 member_count,
             }
         })
         .collect();
     DashboardTemplate {
         status: zt.status.clone(),
-        network_count: zt.controller_networks.len(),
+        network_count: visible_networks.len(),
         network_rows,
         total_members,
         authorized_members,
@@ -70,18 +97,43 @@ pub struct DashboardStatsPartial {
     pub error: Option<String>,
 }
 
-pub async fn dashboard_partial(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn dashboard_partial(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+) -> impl IntoResponse {
     let zt = state.zt_state.read().await;
-    let total_members: usize = zt.controller_members.values().map(|v| v.len()).sum();
-    let authorized_members: usize = zt
-        .controller_members
-        .values()
-        .flat_map(|v| v.iter())
+
+    // Filter networks based on user permissions
+    let visible_networks: Vec<&ControllerNetwork> = zt
+        .controller_networks
+        .iter()
+        .filter(|net| permissions::can_read(&user, net.display_id()))
+        .collect();
+
+    let total_members: usize = visible_networks
+        .iter()
+        .map(|net| {
+            zt.controller_members
+                .get(net.display_id())
+                .map(|v| v.len())
+                .unwrap_or(0)
+        })
+        .sum();
+    let authorized_members: usize = visible_networks
+        .iter()
+        .flat_map(|net| {
+            zt.controller_members
+                .get(net.display_id())
+                .map(|v| v.iter())
+                .into_iter()
+                .flatten()
+        })
         .filter(|m| m.is_authorized())
         .count();
+
     DashboardStatsPartial {
         status: zt.status.clone(),
-        network_count: zt.controller_networks.len(),
+        network_count: visible_networks.len(),
         total_members,
         authorized_members,
         error: zt.error.clone(),
@@ -95,11 +147,15 @@ pub struct DashboardNetworksPartial {
     pub network_rows: Vec<NetworkRow>,
 }
 
-pub async fn dashboard_networks_partial(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn dashboard_networks_partial(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+) -> impl IntoResponse {
     let zt = state.zt_state.read().await;
     let network_rows: Vec<NetworkRow> = zt
         .controller_networks
         .iter()
+        .filter(|net| permissions::can_read(&user, net.display_id()))
         .map(|net| {
             let nwid = net.display_id().to_string();
             let member_count = zt

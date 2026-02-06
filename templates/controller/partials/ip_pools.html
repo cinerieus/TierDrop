@@ -2,15 +2,18 @@
     <h3>Network</h3>
 </div>
 
+<div {% if !can_modify %}style="opacity: 0.5; pointer-events: none;"{% endif %}>
 <!-- ===== IPv4 Section ===== -->
 <h4 class="subsection-title">IPv4</h4>
 <form class="mb-3">
     <label class="toggle-label">
         <input type="checkbox" name="v4_auto_assign"
                {% if network.v4_auto_assign() %}checked{% endif %}
+               {% if can_modify %}
                hx-post="/controller/{{ nwid }}/assign-modes"
                hx-target="#ip-assignment" hx-swap="innerHTML"
-               hx-include="[name='v6_rfc4193'],[name='v6_sixplane'],[name='v6_auto_assign']">
+               hx-include="[name='v6_rfc4193'],[name='v6_sixplane'],[name='v6_auto_assign']"
+               {% else %}disabled{% endif %}>
         <span class="text-secondary">Auto-Assign from Range</span>
     </label>
 </form>
@@ -212,12 +215,13 @@
     </table>
 </div>
 {% endif %}
-<form class="inline-form" hx-post="/controller/{{ nwid }}/dns"
-      hx-target="#ip-assignment" hx-swap="innerHTML">
+<form class="inline-form" {% if can_modify %}hx-post="/controller/{{ nwid }}/dns"
+      hx-target="#ip-assignment" hx-swap="innerHTML"{% endif %}>
     <input type="text" name="domain" class="form-input mono"
            placeholder="e.g. zt.example.com" style="max-width:180px;"
-           value="{{ network.dns.domain }}">
+           value="{{ network.dns.domain }}" {% if !can_modify %}disabled{% endif %}>
     <input type="text" name="server" class="form-input mono"
-           placeholder="e.g. 10.0.0.1" required style="max-width:180px;">
-    <button type="submit" class="btn btn-primary btn-sm">Add Server</button>
+           placeholder="e.g. 10.0.0.1" {% if can_modify %}required{% endif %} style="max-width:180px;" {% if !can_modify %}disabled{% endif %}>
+    <button type="submit" class="btn btn-primary btn-sm" {% if !can_modify %}disabled{% endif %}>Add Server</button>
 </form>
+</div>

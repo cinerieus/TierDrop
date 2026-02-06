@@ -4,19 +4,19 @@
             <h3>Member {{ member.display_id() }}</h3>
             <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">&times;</button>
         </div>
-        <form hx-post="/controller/{{ nwid }}/members/{{ member.display_id() }}/update"
-              hx-swap="none">
-            <div class="modal-body">
+        <form {% if can_modify %}hx-post="/controller/{{ nwid }}/members/{{ member.display_id() }}/update"
+              hx-swap="none"{% endif %}>
+            <div class="modal-body" {% if !can_modify %}style="opacity: 0.6;"{% endif %}>
                 <div class="form-group">
                     <label class="form-label">Name</label>
                     <input type="text" name="name" class="form-input"
-                           value="{{ name }}" placeholder="Display name">
+                           value="{{ name }}" placeholder="Display name" {% if !can_modify %}disabled{% endif %}>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">
                         <input type="checkbox" name="authorized" value="on"
-                               {% if member.is_authorized() %}checked{% endif %}>
+                               {% if member.is_authorized() %}checked{% endif %} {% if !can_modify %}disabled{% endif %}>
                         Authorized
                     </label>
                 </div>
@@ -24,7 +24,7 @@
                 <div class="form-group">
                     <label class="form-label">
                         <input type="checkbox" name="active_bridge" value="on"
-                               {% if member.is_bridge() %}checked{% endif %}>
+                               {% if member.is_bridge() %}checked{% endif %} {% if !can_modify %}disabled{% endif %}>
                         Allow Ethernet Bridging
                     </label>
                 </div>
@@ -32,7 +32,7 @@
                 <div class="form-group">
                     <label class="form-label">
                         <input type="checkbox" name="no_auto_assign_ips" value="on"
-                               {% if member.no_auto_assign_ips %}checked{% endif %}>
+                               {% if member.no_auto_assign_ips %}checked{% endif %} {% if !can_modify %}disabled{% endif %}>
                         Do Not Auto-Assign IPs
                     </label>
                 </div>
@@ -41,7 +41,7 @@
                     <label class="form-label">IP Assignments</label>
                     <input type="text" name="ip_assignments" class="form-input mono"
                            value="{{ member.display_ip_assignments() }}"
-                           placeholder="e.g. 10.0.0.1, fd00::1">
+                           placeholder="e.g. 10.0.0.1, fd00::1" {% if !can_modify %}disabled{% endif %}>
                     <small class="text-secondary">Comma-separated (IPv4 and IPv6)</small>
                 </div>
 
@@ -84,8 +84,10 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-sm"
-                        onclick="this.closest('.modal-backdrop').remove()">Cancel</button>
+                        onclick="this.closest('.modal-backdrop').remove()">{% if can_modify %}Cancel{% else %}Close{% endif %}</button>
+                {% if can_modify %}
                 <button type="submit" class="btn btn-primary btn-sm"><span class="htmx-hide-on-request">Save</span><span class="spinner htmx-indicator"></span></button>
+                {% endif %}
             </div>
         </form>
     </div>

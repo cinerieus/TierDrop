@@ -94,8 +94,15 @@ pub fn build_router(state: AppState) -> Router {
         // Settings and backup
         .route("/settings", get(settings::settings_page))
         .route("/settings/password", post(settings::change_password))
+        .route("/settings/username", post(settings::change_username))
         .route("/settings/backup/export", post(backup::export_backup))
         .route("/settings/backup/restore", post(backup::restore_backup))
+        // User management (admin only)
+        .route("/settings/users", get(settings::users_list))
+        .route("/settings/users/create", post(settings::create_user))
+        .route("/settings/users/{id}/modal", get(settings::user_modal))
+        .route("/settings/users/{id}/update", post(settings::update_user))
+        .route("/settings/users/{id}", delete(settings::delete_user))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,

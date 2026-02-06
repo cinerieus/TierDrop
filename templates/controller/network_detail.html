@@ -28,6 +28,7 @@
         </div>
         <div class="flex gap-2">
             <span id="network-type-badge" class="badge {{ network.type_class() }}">{{ network.display_type() }}</span>
+            {% if can_delete %}
             <button
                 class="btn btn-danger btn-sm"
                 hx-delete="/controller/{{ network.display_id() }}"
@@ -36,6 +37,11 @@
             >
                 Delete Network
             </button>
+            {% else %}
+            <button class="btn btn-danger btn-sm" disabled style="opacity: 0.5; cursor: not-allowed;" title="No permission">
+                Delete Network
+            </button>
+            {% endif %}
         </div>
     </div>
 </div>

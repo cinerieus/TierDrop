@@ -4,9 +4,11 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Form;
+use axum::Extension;
 use serde::Deserialize;
 
-use crate::state::AppState;
+use crate::permissions;
+use crate::state::{AppState, User};
 use crate::zt::models::{ControllerMember, ControllerNetwork, ControllerRoute, IpAssignmentPool};
 
 // ---- Default Flow Rules ----
@@ -94,6 +96,10 @@ pub struct ControllerNetworkDetailTemplate {
     pub rules_source: String,
     pub is_htmx: bool,
     pub version: &'static str,
+    // Permissions
+    pub can_authorize: bool,
+    pub can_modify: bool,
+    pub can_delete: bool,
 }
 
 // ---- Partial Templates ----
@@ -106,12 +112,15 @@ pub struct CtrlMemberListPartial {
     pub member_count: usize,
     pub authorized_count: usize,
     pub is_htmx: bool,
+    pub can_authorize: bool,
+    pub can_modify: bool,
 }
 
 #[derive(Template, WebTemplate)]
 #[template(path = "controller/partials/network_settings.html")]
 pub struct CtrlNetworkSettingsPartial {
     pub network: ControllerNetwork,
+    pub can_modify: bool,
 }
 
 #[derive(Template, WebTemplate)]
@@ -121,6 +130,7 @@ pub struct CtrlIpPoolsPartial {
     pub network: ControllerNetwork,
     pub pools: Vec<IpAssignmentPool>,
     pub routes: Vec<ControllerRoute>,
+    pub can_modify: bool,
 }
 
 #[derive(Template, WebTemplate)]
@@ -128,6 +138,8 @@ pub struct CtrlIpPoolsPartial {
 pub struct CtrlMemberRowPartial {
     pub nwid: String,
     pub row: MemberDisplayRow,
+    pub can_authorize: bool,
+    pub can_modify: bool,
 }
 
 #[derive(Template, WebTemplate)]
@@ -138,6 +150,7 @@ pub struct CtrlMemberModalPartial {
     pub name: String,
     pub rfc4193_addr: Option<String>,
     pub sixplane_addr: Option<String>,
+    pub can_modify: bool,
 }
 
 #[derive(Template, WebTemplate)]
@@ -146,14 +159,21 @@ pub struct CtrlFlowRulesPartial {
     pub nwid: String,
     pub network: ControllerNetwork,
     pub rules_source: String,
+    pub can_modify: bool,
 }
 
 // ---- Handlers: Pages ----
 
 pub async fn controller_network_detail(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
 ) -> Response {
+    // Check read permission
+    if !permissions::can_read(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to view this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let (nw_result, members_result) = match client.as_ref() {
         Some(c) => {
@@ -188,6 +208,11 @@ pub async fn controller_network_detail(
         .unwrap_or_default();
     drop(config);
 
+    // Get user permissions for this network
+    let can_authorize = permissions::can_authorize(&user, &nwid);
+    let can_modify = permissions::can_modify(&user, &nwid);
+    let can_delete = permissions::can_delete(&user, &nwid);
+
     match nw_result {
         Some(Ok(network)) => {
             let members = members_result.and_then(|r| r.ok()).unwrap_or_default();
@@ -207,6 +232,9 @@ pub async fn controller_network_detail(
                 rules_source,
                 is_htmx: false,
                 version: crate::VERSION,
+                can_authorize,
+                can_modify,
+                can_delete,
             }
             .into_response()
         }
@@ -239,6 +267,9 @@ pub async fn controller_network_detail(
                     rules_source,
                     is_htmx: false,
                     version: crate::VERSION,
+                    can_authorize,
+                    can_modify,
+                    can_delete,
                 }
                 .into_response()
             } else {
@@ -250,7 +281,15 @@ pub async fn controller_network_detail(
 
 // ---- Handlers: Network Actions ----
 
-pub async fn create_network(State(state): State<AppState>) -> Response {
+pub async fn create_network(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+) -> Response {
+    // Only admins can create networks
+    if !permissions::is_admin(&user) {
+        return (StatusCode::FORBIDDEN, "Only administrators can create networks").into_response();
+    }
+
     let zt = state.zt_state.read().await;
     let node_address = match zt.status.as_ref().and_then(|s| s.address.clone()) {
         Some(addr) => addr,
@@ -313,8 +352,14 @@ pub async fn create_network(State(state): State<AppState>) -> Response {
 
 pub async fn delete_network(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
 ) -> Response {
+    // Check delete permission
+    if !permissions::can_delete(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to delete this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let result = match client.as_ref() {
         Some(c) => Some(c.delete_controller_network(&nwid).await),
@@ -350,9 +395,15 @@ pub struct UpdateSettingsForm {
 
 pub async fn update_settings(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<UpdateSettingsForm>,
 ) -> Response {
+    // Check modify permission
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let body = serde_json::json!({
         "name": form.name.unwrap_or_default(),
         "private": form.private.is_some(),
@@ -368,7 +419,7 @@ pub async fn update_settings(
     match result {
         Some(Ok(network)) => {
             state.notify_poller();
-            CtrlNetworkSettingsPartial { network }.into_response()
+            CtrlNetworkSettingsPartial { network, can_modify: true }.into_response()
         }
         Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
         None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
@@ -385,9 +436,14 @@ pub struct UpdateBroadcastForm {
 
 pub async fn update_broadcast_settings(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<UpdateBroadcastForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let body = serde_json::json!({
         "enableBroadcast": form.enable_broadcast.is_some(),
         "multicastLimit": form.multicast_limit.unwrap_or(32),
@@ -410,6 +466,7 @@ pub async fn update_broadcast_settings(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -430,9 +487,14 @@ pub struct UpdateAssignModesForm {
 
 pub async fn update_assign_modes(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<UpdateAssignModesForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let body = serde_json::json!({
         "v4AssignMode": { "zt": form.v4_auto_assign.is_some() },
         "v6AssignMode": {
@@ -459,6 +521,7 @@ pub async fn update_assign_modes(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -477,9 +540,14 @@ pub struct AddPoolForm {
 
 pub async fn add_pool(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<AddPoolForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -515,6 +583,7 @@ pub async fn add_pool(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -529,9 +598,14 @@ pub struct RemovePoolForm {
 
 pub async fn remove_pool(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<RemovePoolForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -565,6 +639,7 @@ pub async fn remove_pool(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -582,9 +657,14 @@ pub struct AddRouteForm {
 
 pub async fn add_route(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<AddRouteForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -620,6 +700,7 @@ pub async fn add_route(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -634,9 +715,14 @@ pub struct RemoveRouteForm {
 
 pub async fn remove_route(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<RemoveRouteForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -668,6 +754,7 @@ pub async fn remove_route(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -685,9 +772,14 @@ pub struct AddDnsForm {
 
 pub async fn add_dns(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<AddDnsForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -730,6 +822,7 @@ pub async fn add_dns(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -744,9 +837,14 @@ pub struct RemoveDnsForm {
 
 pub async fn remove_dns(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<RemoveDnsForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -792,6 +890,7 @@ pub async fn remove_dns(
                 network,
                 pools,
                 routes,
+                can_modify: true,
             }
             .into_response()
         }
@@ -803,8 +902,13 @@ pub async fn remove_dns(
 
 pub async fn toggle_member_auth(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path((nwid, member_id)): Path<(String, String)>,
 ) -> Response {
+    if !permissions::can_authorize(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to authorize members").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -838,8 +942,10 @@ pub async fn toggle_member_auth(
             drop(config);
             let rows = enrich_members(&[member], &member_names, &network);
             CtrlMemberRowPartial {
-                nwid,
+                nwid: nwid.clone(),
                 row: rows.into_iter().next().unwrap(),
+                can_authorize: permissions::can_authorize(&user, &nwid),
+                can_modify: permissions::can_modify(&user, &nwid),
             }
             .into_response()
         }
@@ -849,8 +955,13 @@ pub async fn toggle_member_auth(
 
 pub async fn delete_member(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path((nwid, member_id)): Path<(String, String)>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to remove members").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let result = match client.as_ref() {
         Some(c) => Some(c.delete_controller_member(&nwid, &member_id).await),
@@ -879,9 +990,14 @@ pub struct AddMemberForm {
 
 pub async fn add_member(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<AddMemberForm>,
 ) -> Response {
+    if !permissions::can_authorize(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to add members").into_response();
+    }
+
     let node_id = form.node_id.trim().to_lowercase();
 
     // Validate: 10 hex characters
@@ -938,15 +1054,28 @@ pub async fn add_member(
     let member_count = fresh_members.len();
     let authorized_count = fresh_members.iter().filter(|m| m.is_authorized()).count();
     let rows = enrich_members(&fresh_members, &member_names, &network);
-    CtrlMemberListPartial { nwid, rows, member_count, authorized_count, is_htmx: true }.into_response()
+    CtrlMemberListPartial {
+        nwid: nwid.clone(),
+        rows,
+        member_count,
+        authorized_count,
+        is_htmx: true,
+        can_authorize: permissions::can_authorize(&user, &nwid),
+        can_modify: permissions::can_modify(&user, &nwid),
+    }.into_response()
 }
 
 // ---- Handlers: Member Modal ----
 
 pub async fn member_modal(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path((nwid, member_id)): Path<(String, String)>,
 ) -> Response {
+    if !permissions::can_read(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to view this network").into_response();
+    }
+
     let client = state.zt_client.read().await;
     let client_ref = match client.as_ref() {
         Some(c) => c.clone(),
@@ -973,6 +1102,7 @@ pub async fn member_modal(
 
     let rfc4193_addr = if network.v6_rfc4193() { member.rfc4193_address() } else { None };
     let sixplane_addr = if network.v6_sixplane() { member.sixplane_address() } else { None };
+    let can_modify = permissions::can_modify(&user, &nwid);
 
     CtrlMemberModalPartial {
         nwid,
@@ -980,6 +1110,7 @@ pub async fn member_modal(
         name,
         rfc4193_addr,
         sixplane_addr,
+        can_modify,
     }
     .into_response()
 }
@@ -997,9 +1128,14 @@ pub struct UpdateMemberForm {
 
 pub async fn update_member(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path((nwid, member_id)): Path<(String, String)>,
     Form(form): Form<UpdateMemberForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify members").into_response();
+    }
+
     // Save name locally
     let name = form.name.as_deref().unwrap_or("").trim().to_string();
     if let Err(e) = state.save_member_name(&member_id, &name).await {
@@ -1054,8 +1190,13 @@ pub async fn update_member(
 
 pub async fn ctrl_member_list_partial(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
-) -> impl IntoResponse {
+) -> Response {
+    if !permissions::can_read(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to view this network").into_response();
+    }
+
     let zt = state.zt_state.read().await;
     let network = zt
         .controller_networks
@@ -1080,7 +1221,15 @@ pub async fn ctrl_member_list_partial(
     let member_count = members.len();
     let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
     let rows = enrich_members(&members, &member_names, &network);
-    CtrlMemberListPartial { nwid, rows, member_count, authorized_count, is_htmx: true }
+    CtrlMemberListPartial {
+        nwid: nwid.clone(),
+        rows,
+        member_count,
+        authorized_count,
+        is_htmx: true,
+        can_authorize: permissions::can_authorize(&user, &nwid),
+        can_modify: permissions::can_modify(&user, &nwid),
+    }.into_response()
 }
 
 // ---- Handlers: Flow Rules ----
@@ -1102,9 +1251,14 @@ struct CompiledRules {
 
 pub async fn update_flow_rules(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     Path(nwid): Path<String>,
     Form(form): Form<UpdateFlowRulesForm>,
 ) -> Response {
+    if !permissions::can_modify(&user, &nwid) {
+        return (StatusCode::FORBIDDEN, "You don't have permission to modify this network").into_response();
+    }
+
     // Parse the compiled rules JSON from the hidden field
     let compiled: CompiledRules = match serde_json::from_str(&form.compiled_rules) {
         Ok(r) => r,
@@ -1135,7 +1289,7 @@ pub async fn update_flow_rules(
                 tracing::warn!("Failed to save rules source: {}", e);
             }
             let rules_source = form.rules_source;
-            CtrlFlowRulesPartial { nwid, network, rules_source }.into_response()
+            CtrlFlowRulesPartial { nwid, network, rules_source, can_modify: true }.into_response()
         }
         Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
         None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),

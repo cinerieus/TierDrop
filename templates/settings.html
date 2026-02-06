@@ -15,12 +15,33 @@
 
 <!-- Tab Bar -->
 <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('user')">User</button>
+    <button class="tab-btn active" onclick="switchTab('account')">Account</button>
+    {% if is_admin %}
+    <button class="tab-btn" onclick="switchTab('users')">Users</button>
     <button class="tab-btn" onclick="switchTab('backup')">Backup / Restore</button>
+    {% endif %}
 </div>
 
-<!-- User Tab -->
-<div id="tab-user" class="tab-content active">
+<!-- Account Tab (visible to all users) -->
+<div id="tab-account" class="tab-content active">
+    <div class="card">
+        <h3 class="settings-section-title">Change Username</h3>
+
+        <form method="POST" action="/settings/username" class="settings-form" id="username-form"
+              hx-post="/settings/username" hx-target="#username-result" hx-swap="innerHTML">
+            <div class="form-group">
+                <label for="new_username">Username</label>
+                <input type="text" id="new_username" name="new_username" class="form-input" required autocomplete="off" value="{{ current_username }}">
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <span class="htmx-hide-on-request">Change Username</span><span class="spinner htmx-indicator"></span>
+            </button>
+        </form>
+
+        <div id="username-result"></div>
+    </div>
+
     <div class="card">
         <h3 class="settings-section-title">Change Password</h3>
 
@@ -48,7 +69,49 @@
     </div>
 </div>
 
-<!-- Backup Tab -->
+<!-- Users Tab (admin only) -->
+{% if is_admin %}
+<div id="tab-users" class="tab-content">
+    <!-- Add User Form -->
+    <div class="card">
+        <h3 class="settings-section-title">Add User</h3>
+        <form hx-post="/settings/users/create" hx-target="#users-list" hx-swap="innerHTML" class="add-user-form">
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label for="new_username">Username</label>
+                    <input type="text" id="new_username" name="username" class="form-input" required autocomplete="off">
+                </div>
+                <div class="form-group flex-1">
+                    <label for="new_user_password">Password</label>
+                    <input type="password" id="new_user_password" name="password" class="form-input" required autocomplete="new-password" minlength="4">
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 0.25rem;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_admin" value="true">
+                        <span>Admin</span>
+                    </label>
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="htmx-hide-on-request">Add User</span><span class="spinner htmx-indicator"></span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Users List -->
+    <div class="card">
+        <h3 class="settings-section-title">Users ({{ users.len() }})</h3>
+        <div id="users-list" hx-get="/settings/users" hx-trigger="load">
+            <div class="loading-placeholder">Loading users...</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Backup Tab (Admin only) -->
+{% if is_admin %}
 <div id="tab-backup" class="tab-content">
     <!-- Export Section -->
     <div class="card">
@@ -133,6 +196,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <script>
 function switchTab(tab) {

@@ -1,7 +1,9 @@
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Extension;
 use axum_extra::extract::Multipart;
 use chrono::{DateTime, Utc};
 use flate2::read::GzDecoder;
@@ -12,7 +14,8 @@ use std::path::{Path, PathBuf};
 use tar::{Archive, Builder};
 use tempfile::TempDir;
 
-use crate::state::AppState;
+use crate::permissions;
+use crate::state::{AppState, User};
 use crate::zt::client::ZtClient;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,7 +129,15 @@ fn extract_tar_gz(data: &[u8]) -> std::io::Result<TempDir> {
 }
 
 /// Export backup handler - creates and downloads a tar.gz backup
-pub async fn export_backup(State(state): State<AppState>) -> Response {
+pub async fn export_backup(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+) -> Response {
+    // Only admins can export backups
+    if !permissions::is_admin(&user) {
+        return (StatusCode::FORBIDDEN, "Only administrators can export backups").into_response();
+    }
+
     // Create temp directory for staging
     let temp_dir = match tempfile::tempdir() {
         Ok(d) => d,
@@ -244,8 +255,14 @@ pub struct RestoreResult {
 /// Restore backup handler - processes uploaded tar.gz backup
 pub async fn restore_backup(
     State(state): State<AppState>,
+    Extension(user): Extension<User>,
     mut multipart: Multipart,
 ) -> Response {
+    // Only admins can restore backups
+    if !permissions::is_admin(&user) {
+        return (StatusCode::FORBIDDEN, "Only administrators can restore backups").into_response();
+    }
+
     // Read the uploaded file
     let mut file_data: Option<Vec<u8>> = None;
 

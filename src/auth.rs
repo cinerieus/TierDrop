@@ -10,9 +10,9 @@ use axum::Form;
 use serde::Deserialize;
 use tower_sessions::Session;
 
-use crate::state::{AppState, Config};
+use crate::state::{AppState, Config, User};
 
-const SESSION_USER_KEY: &str = "authenticated";
+const SESSION_USER_ID_KEY: &str = "user_id";
 
 /// Hash a password with Argon2id
 pub fn hash_password(password: &str) -> Result<String, String> {
@@ -35,26 +35,42 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+// ---- Session Helpers ----
+
+/// Get the current user ID from the session
+pub async fn get_session_user_id(session: &Session) -> Option<u64> {
+    session.get::<u64>(SESSION_USER_ID_KEY).await.ok().flatten()
+}
+
+/// Get the current user from session + config
+pub async fn get_current_user(session: &Session, state: &AppState) -> Option<User> {
+    let user_id = get_session_user_id(session).await?;
+    let config = state.config.read().await;
+    config.as_ref()?.find_user_by_id(user_id).cloned()
+}
+
+/// Check if user is authenticated (has valid session)
+pub async fn is_authenticated(session: &Session, state: &AppState) -> bool {
+    get_current_user(session, state).await.is_some()
+}
+
 // ---- Middleware ----
 
 /// Auth middleware — redirects to /setup if unconfigured, /login if unauthenticated
+/// Also stores the current user in request extensions for route handlers
 pub async fn auth_middleware(
     State(state): State<AppState>,
     session: Session,
-    request: Request<axum::body::Body>,
+    mut request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
     if !state.is_configured().await {
         return Redirect::to("/setup").into_response();
     }
 
-    let is_authenticated = session
-        .get::<bool>(SESSION_USER_KEY)
-        .await
-        .unwrap_or(None)
-        .unwrap_or(false);
-
-    if is_authenticated {
+    if let Some(user) = get_current_user(&session, &state).await {
+        // Store user in request extensions for easy access in handlers
+        request.extensions_mut().insert(user);
         next.run(request).await
     } else {
         Redirect::to("/login").into_response()
@@ -137,9 +153,14 @@ pub async fn setup_submit(
     let zt_base_url =
         std::env::var("ZT_BASE_URL").unwrap_or_else(|_| "http://localhost:9993".to_string());
 
+    // Create the first admin user with ID 1
+    let admin_user = User::new_admin(1, username, password_hash);
+
     let config = Config {
-        username,
-        password_hash,
+        username: None,
+        password_hash: None,
+        users: vec![admin_user],
+        next_user_id: 2,
         zt_token,
         zt_base_url,
         member_names: std::collections::HashMap::new(),
@@ -179,13 +200,7 @@ pub async fn login_page(
         return Redirect::to("/setup").into_response();
     }
 
-    let is_authenticated = session
-        .get::<bool>(SESSION_USER_KEY)
-        .await
-        .unwrap_or(None)
-        .unwrap_or(false);
-
-    if is_authenticated {
+    if is_authenticated(&session, &state).await {
         return Redirect::to("/").into_response();
     }
 
@@ -204,21 +219,24 @@ pub async fn login_submit(
         None => return Redirect::to("/setup").into_response(),
     };
 
-    let username_match = form.username.trim() == config.username;
-    let password_match = verify_password(&form.password, &config.password_hash);
+    let username = form.username.trim();
 
-    if username_match && password_match {
-        session
-            .insert(SESSION_USER_KEY, true)
-            .await
-            .unwrap_or_default();
-        Redirect::to("/").into_response()
-    } else {
-        let tmpl = LoginTemplate {
-            error: Some("Invalid username or password.".to_string()),
-        };
-        (StatusCode::UNAUTHORIZED, tmpl).into_response()
+    // Find user by username
+    if let Some(user) = config.find_user_by_username(username) {
+        if verify_password(&form.password, &user.password_hash) {
+            // Store user ID in session
+            session
+                .insert(SESSION_USER_ID_KEY, user.id)
+                .await
+                .unwrap_or_default();
+            return Redirect::to("/").into_response();
+        }
     }
+
+    let tmpl = LoginTemplate {
+        error: Some("Invalid username or password.".to_string()),
+    };
+    (StatusCode::UNAUTHORIZED, tmpl).into_response()
 }
 
 /// GET /logout

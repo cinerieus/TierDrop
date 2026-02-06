@@ -1,6 +1,7 @@
 mod app;
 mod assets;
 mod auth;
+mod permissions;
 mod routes;
 mod sse;
 mod state;

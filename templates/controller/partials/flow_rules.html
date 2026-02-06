@@ -1,15 +1,15 @@
 <div class="card-header">
     <h3>Flow Rules</h3>
 </div>
-<form id="flow-rules-form" hx-post="/controller/{{ nwid }}/flow-rules"
+<form id="flow-rules-form" {% if can_modify %}hx-post="/controller/{{ nwid }}/flow-rules"
       hx-target="#flow-rules-container"
-      hx-swap="innerHTML">
-    <div class="flow-rules-editor">
+      hx-swap="innerHTML"{% endif %}>
+    <div class="flow-rules-editor" {% if !can_modify %}style="opacity: 0.5;"{% endif %}>
         <div class="flow-rules-pane flow-rules-pane-left">
             <label class="detail-label">Rule Language</label>
             <div class="flow-rules-textarea-wrap">
                 <div id="line-numbers" class="flow-rules-line-numbers"></div>
-                <textarea id="rules-source" name="rules_source" class="form-input mono flow-rules-textarea">{% if !rules_source.is_empty() %}{{ rules_source }}{% else %}#
+                <textarea id="rules-source" name="rules_source" class="form-input mono flow-rules-textarea" {% if !can_modify %}disabled{% endif %}>{% if !rules_source.is_empty() %}{{ rules_source }}{% else %}#
 # This is a default rule set that allows IPv4 and IPv6 traffic but otherwise
 # behaves like a standard Ethernet switch:
 
@@ -35,7 +35,11 @@ accept;
     </div>
     <input type="hidden" id="compiled-rules" name="compiled_rules" value="">
     <div class="mt-4 flex items-center gap-3">
+        {% if can_modify %}
         <button type="submit" class="btn btn-primary btn-sm" id="apply-rules-btn" disabled><span class="htmx-hide-on-request">Apply</span><span class="spinner htmx-indicator"></span></button>
+        {% else %}
+        <button type="button" class="btn btn-primary btn-sm" disabled title="No permission">Apply</button>
+        {% endif %}
         <span id="compile-status" class="text-secondary text-sm" style="margin-left: 4px;"></span>
     </div>
 </form>

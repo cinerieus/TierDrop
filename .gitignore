@@ -21,3 +21,6 @@ Thumbs.db
 
 # API
 zt-api/
+
+# Certs
+docker/certs/
