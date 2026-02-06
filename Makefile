@@ -33,6 +33,7 @@ linux:
 	@echo "Built $(DIST)/$(LINUX_BIN)"
 
 linux-arm:
+	CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
 	RUSTFLAGS='$(RUSTFLAGS_STATIC)' cargo build --release --target $(LINUX_ARM_TARGET)
 	mkdir -p $(DIST)
 	cp target/$(LINUX_ARM_TARGET)/release/$(NAME) $(DIST)/$(LINUX_ARM_BIN)
