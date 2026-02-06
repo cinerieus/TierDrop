@@ -34,6 +34,8 @@ pub struct Config {
     pub zt_base_url: String,
     #[serde(default)]
     pub member_names: HashMap<String, String>,
+    #[serde(default)]
+    pub rules_source: HashMap<String, String>,  // nwid -> DSL source
 }
 
 fn default_zt_base_url() -> String {
@@ -141,6 +143,26 @@ impl AppState {
             c.save()?;
         }
         Ok(())
+    }
+
+    /// Save or remove flow rules source DSL for a network. Empty source removes the entry.
+    pub async fn save_rules_source(&self, nwid: &str, source: &str) -> Result<(), String> {
+        let mut cfg = self.config.write().await;
+        if let Some(ref mut c) = *cfg {
+            if source.is_empty() {
+                c.rules_source.remove(nwid);
+            } else {
+                c.rules_source.insert(nwid.to_string(), source.to_string());
+            }
+            c.save()?;
+        }
+        Ok(())
+    }
+
+    /// Get the stored flow rules source DSL for a network.
+    pub async fn _get_rules_source(&self, nwid: &str) -> Option<String> {
+        let cfg = self.config.read().await;
+        cfg.as_ref().and_then(|c| c.rules_source.get(nwid).cloned())
     }
 
     /// Save config, update state, start ZT client + poller.

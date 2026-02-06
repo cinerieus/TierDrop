@@ -74,6 +74,10 @@ pub struct ControllerNetwork {
     #[serde(default)]
     pub rules: Vec<serde_json::Value>,
     #[serde(default)]
+    pub capabilities: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub tags: Vec<serde_json::Value>,
+    #[serde(default)]
     pub dns: DnsConfig,
 }
 
@@ -159,6 +163,16 @@ impl ControllerNetwork {
 
     pub fn display_creation_time(&self) -> String {
         format_epoch_ms(self.creation_time)
+    }
+
+    /// Returns the rules, capabilities, and tags as formatted JSON string
+    pub fn display_rules_json(&self) -> String {
+        let output = serde_json::json!({
+            "rules": &self.rules,
+            "capabilities": &self.capabilities,
+            "tags": &self.tags
+        });
+        serde_json::to_string_pretty(&output).unwrap_or_else(|_| r#"{"rules":[],"capabilities":[],"tags":[]}"#.to_string())
     }
 }
 

@@ -1,8 +1,8 @@
+<h2 id="network-name" hx-swap-oob="true">{{ network.display_name() }}</h2>
+<span id="network-type-badge" class="badge {{ network.type_class() }}" hx-swap-oob="true">{{ network.display_type() }}</span>
+
 <div class="card-header">
     <h3>General</h3>
-    <button type="button" class="btn btn-primary btn-sm qr-join-btn" data-nwid="{{ network.display_id() }}">
-        QR Join
-    </button>
 </div>
 <form hx-post="/controller/{{ network.display_id() }}/settings"
       hx-target="#network-settings"
@@ -27,7 +27,7 @@
     </div>
     <div class="mt-4">
         <button type="submit" class="btn btn-primary btn-sm">
-            Save Settings
+            Apply
             <span class="spinner htmx-indicator"></span>
         </button>
     </div>

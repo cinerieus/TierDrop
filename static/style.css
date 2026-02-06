@@ -310,8 +310,13 @@ td.col-action {
     background: var(--orange);
     color: var(--text-on-orange);
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
     background: var(--orange-hover);
+}
+.btn-primary:disabled {
+    background: var(--border);
+    color: var(--text-muted);
+    cursor: not-allowed;
 }
 
 .btn-danger {
@@ -821,6 +826,139 @@ a.node-link:hover {
     word-break: break-all;
 }
 
+/* ---- Tabs ---- */
+.tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+}
+
+.tab-btn {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.tab-btn:hover {
+    color: var(--text);
+}
+
+.tab-btn.active {
+    color: var(--orange);
+    border-bottom-color: var(--orange);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* ---- Flow Rules Editor ---- */
+.flow-rules-editor {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+    min-height: 300px;
+    resize: vertical;
+    overflow: hidden;
+}
+
+.flow-rules-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+}
+
+.flow-rules-pane-left {
+    flex: 2;
+}
+
+.flow-rules-pane-right {
+    flex: 1;
+}
+
+.flow-rules-textarea-wrap {
+    display: flex;
+    flex: 1;
+    min-height: 300px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.flow-rules-line-numbers {
+    padding: 12px 8px;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: right;
+    user-select: none;
+    min-width: 40px;
+    overflow: hidden;
+    white-space: pre;
+}
+
+.flow-rules-textarea {
+    flex: 1;
+    min-height: 100%;
+    resize: none;
+    border: none;
+    border-radius: 0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre;
+    overflow: auto;
+    padding: 12px;
+}
+
+.flow-rules-textarea:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.flow-rules-json {
+    flex: 1;
+    min-height: 300px;
+    overflow: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0;
+    white-space: pre;
+}
+
+.flow-rules-error {
+    background: rgba(255, 77, 77, 0.1);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    padding: 12px;
+    color: var(--danger);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
     .main-content {
@@ -843,6 +981,10 @@ a.node-link:hover {
     .modal {
         max-width: 100%;
         max-height: 90vh;
+    }
+
+    .flow-rules-editor {
+        grid-template-columns: 1fr;
     }
 }
 

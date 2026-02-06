@@ -7,12 +7,15 @@ RUN cp dist/tierdrop-*-linux-amd64 /tierdrop
 FROM debian:bookworm-slim
 
 # Install ZeroTier and dependencies
+# Note: The install script may briefly start zerotier and create identity files,
+# so we explicitly remove them to ensure fresh identity on each container start
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     gnupg \
     && curl -s https://install.zerotier.com | bash \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/zerotier-one/*
 
 COPY --from=builder /tierdrop /usr/local/bin/tierdrop
 COPY docker/docker-entrypoint.sh /usr/local/bin/

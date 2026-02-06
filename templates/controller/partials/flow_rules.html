@@ -1,0 +1,156 @@
+<div class="card-header">
+    <h3>Flow Rules</h3>
+</div>
+<form id="flow-rules-form" hx-post="/controller/{{ nwid }}/flow-rules"
+      hx-target="#flow-rules-container"
+      hx-swap="innerHTML">
+    <div class="flow-rules-editor">
+        <div class="flow-rules-pane flow-rules-pane-left">
+            <label class="detail-label">Rule Language</label>
+            <div class="flow-rules-textarea-wrap">
+                <div id="line-numbers" class="flow-rules-line-numbers"></div>
+                <textarea id="rules-source" name="rules_source" class="form-input mono flow-rules-textarea">{% if !rules_source.is_empty() %}{{ rules_source }}{% else %}#
+# This is a default rule set that allows IPv4 and IPv6 traffic but otherwise
+# behaves like a standard Ethernet switch:
+
+drop
+	not ethertype ipv4
+	and not ethertype arp
+	and not ethertype ipv6
+;
+
+# Accept anything else. This is required since default is 'drop':
+
+accept;
+
+# For more information on how rules work visit: https://docs.zerotier.com/rules/
+{% endif %}</textarea>
+            </div>
+        </div>
+        <div class="flow-rules-pane flow-rules-pane-right">
+            <label class="detail-label">Compiled JSON</label>
+            <pre id="rules-json" class="flow-rules-json">{{ network.display_rules_json() }}</pre>
+            <div id="rules-error" class="flow-rules-error" style="display:none;"></div>
+        </div>
+    </div>
+    <input type="hidden" id="compiled-rules" name="compiled_rules" value="">
+    <div class="mt-4 flex items-center gap-3">
+        <button type="submit" class="btn btn-primary btn-sm" id="apply-rules-btn" disabled>
+            Apply
+            <span class="spinner htmx-indicator"></span>
+        </button>
+        <span id="compile-status" class="text-secondary text-sm" style="margin-left: 4px;"></span>
+    </div>
+</form>
+
+<script>
+(function() {
+    const sourceEl = document.getElementById('rules-source');
+    const jsonEl = document.getElementById('rules-json');
+    const errorEl = document.getElementById('rules-error');
+    const hiddenEl = document.getElementById('compiled-rules');
+    const statusEl = document.getElementById('compile-status');
+    const applyBtn = document.getElementById('apply-rules-btn');
+    const lineNumbersEl = document.getElementById('line-numbers');
+
+    // Update line numbers
+    function updateLineNumbers() {
+        const lines = sourceEl.value.split('\n').length;
+        let text = '';
+        for (let i = 1; i <= lines; i++) {
+            text += i + '\n';
+        }
+        lineNumbersEl.textContent = text;
+    }
+
+    // Sync scroll between textarea and line numbers
+    sourceEl.addEventListener('scroll', function() {
+        lineNumbersEl.scrollTop = sourceEl.scrollTop;
+    });
+
+    function compileRules() {
+        updateLineNumbers();
+        const source = sourceEl.value;
+        const rules = [];
+        const caps = {};
+        const tags = {};
+
+        const error = window.ZTRuleCompiler.compile(source, rules, caps, tags);
+
+        if (error) {
+            const [line, col, msg] = error;
+            errorEl.textContent = `Error at line ${line}, col ${col}: ${msg}`;
+            errorEl.style.display = 'block';
+            jsonEl.style.display = 'none';
+            hiddenEl.value = '';
+            applyBtn.disabled = true;
+            statusEl.textContent = '';
+        } else {
+            errorEl.style.display = 'none';
+            jsonEl.style.display = 'block';
+
+            // Format output with rules, capabilities, and tags
+            const output = {
+                rules: rules,
+                capabilities: Object.values(caps),
+                tags: Object.values(tags)
+            };
+
+            const compiled = JSON.stringify(output, null, 2);
+            jsonEl.textContent = compiled;
+            hiddenEl.value = compiled;
+            applyBtn.disabled = false;
+
+            const capCount = Object.keys(caps).length;
+            const tagCount = Object.keys(tags).length;
+            let status = `${rules.length} rule(s)`;
+            if (capCount > 0) status += `, ${capCount} capability(ies)`;
+            if (tagCount > 0) status += `, ${tagCount} tag(s)`;
+            statusEl.textContent = status;
+        }
+    }
+
+    // Handle Tab key for indentation (IDE-like behavior)
+    sourceEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            const value = this.value;
+
+            if (e.shiftKey) {
+                // Shift+Tab: dedent current line
+                const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+                const lineContent = value.substring(lineStart);
+                // Remove leading tab or up to 4 spaces
+                if (lineContent.startsWith('\t')) {
+                    this.value = value.substring(0, lineStart) + lineContent.substring(1);
+                    this.selectionStart = this.selectionEnd = Math.max(lineStart, start - 1);
+                } else if (lineContent.match(/^ {1,4}/)) {
+                    const spaces = lineContent.match(/^ {1,4}/)[0].length;
+                    this.value = value.substring(0, lineStart) + lineContent.substring(spaces);
+                    this.selectionStart = this.selectionEnd = Math.max(lineStart, start - spaces);
+                }
+            } else {
+                // Tab: insert tab character
+                this.value = value.substring(0, start) + '\t' + value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 1;
+            }
+
+            // Trigger input event to recompile
+            this.dispatchEvent(new Event('input'));
+        }
+    });
+
+    // Compile on input with debounce
+    let timeout;
+    sourceEl.addEventListener('input', function() {
+        clearTimeout(timeout);
+        timeout = setTimeout(compileRules, 300);
+    });
+
+    // Initial setup - always compile to set correct button state
+    updateLineNumbers();
+    compileRules();
+})();
+</script>

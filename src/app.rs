@@ -61,6 +61,10 @@ pub fn build_router(state: AppState) -> Router {
             "/controller/{nwid}/dns/remove",
             post(controller::remove_dns),
         )
+        .route(
+            "/controller/{nwid}/flow-rules",
+            post(controller::update_flow_rules),
+        )
         // Controller member actions
         .route(
             "/controller/{nwid}/members/add",

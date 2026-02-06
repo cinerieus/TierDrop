@@ -9,6 +9,41 @@ use serde::Deserialize;
 use crate::state::AppState;
 use crate::zt::models::{ControllerMember, ControllerNetwork, ControllerRoute, IpAssignmentPool};
 
+// ---- Default Flow Rules ----
+
+/// Default rules DSL source (same as shown in editor)
+pub const DEFAULT_RULES_SOURCE: &str = r#"#
+# This is a default rule set that allows IPv4 and IPv6 traffic but otherwise
+# behaves like a standard Ethernet switch:
+
+drop
+	not ethertype ipv4
+	and not ethertype arp
+	and not ethertype ipv6
+;
+
+# Accept anything else. This is required since default is 'drop':
+
+accept;
+
+# For more information on how rules work visit: https://docs.zerotier.com/rules/
+"#;
+
+/// Returns the compiled default rules as JSON array
+fn default_compiled_rules() -> Vec<serde_json::Value> {
+    // Pre-compiled default rules (drop non-IP traffic, accept everything else)
+    serde_json::from_str(
+        r#"[
+        {"not":true,"or":false,"type":"MATCH_ETHERTYPE","etherType":2048},
+        {"not":true,"or":false,"type":"MATCH_ETHERTYPE","etherType":2054},
+        {"not":true,"or":false,"type":"MATCH_ETHERTYPE","etherType":34525},
+        {"type":"ACTION_DROP"},
+        {"type":"ACTION_ACCEPT"}
+    ]"#,
+    )
+    .unwrap_or_default()
+}
+
 // ---- Display row with enriched data ----
 
 pub struct MemberDisplayRow {
@@ -52,9 +87,11 @@ pub struct ControllerNetworkDetailTemplate {
     pub network: ControllerNetwork,
     pub rows: Vec<MemberDisplayRow>,
     pub member_count: usize,
+    pub authorized_count: usize,
     pub nwid: String,
     pub pools: Vec<IpAssignmentPool>,
     pub routes: Vec<ControllerRoute>,
+    pub rules_source: String,
 }
 
 // ---- Partial Templates ----
@@ -65,6 +102,7 @@ pub struct CtrlMemberListPartial {
     pub nwid: String,
     pub rows: Vec<MemberDisplayRow>,
     pub member_count: usize,
+    pub authorized_count: usize,
 }
 
 #[derive(Template, WebTemplate)]
@@ -97,6 +135,14 @@ pub struct CtrlMemberModalPartial {
     pub name: String,
     pub rfc4193_addr: Option<String>,
     pub sixplane_addr: Option<String>,
+}
+
+#[derive(Template, WebTemplate)]
+#[template(path = "controller/partials/flow_rules.html")]
+pub struct CtrlFlowRulesPartial {
+    pub nwid: String,
+    pub network: ControllerNetwork,
+    pub rules_source: String,
 }
 
 // ---- Handlers: Pages ----
@@ -133,12 +179,17 @@ pub async fn controller_network_detail(
         .as_ref()
         .map(|c| c.member_names.clone())
         .unwrap_or_default();
+    let rules_source = config
+        .as_ref()
+        .and_then(|c| c.rules_source.get(&nwid).cloned())
+        .unwrap_or_default();
     drop(config);
 
     match nw_result {
         Some(Ok(network)) => {
             let members = members_result.and_then(|r| r.ok()).unwrap_or_default();
             let member_count = members.len();
+            let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
             let pools = network.ip_assignment_pools.clone();
             let routes = network.routes.clone();
             let rows = enrich_members(&members, &member_names, &network);
@@ -149,6 +200,8 @@ pub async fn controller_network_detail(
                 network,
                 rows,
                 member_count,
+                authorized_count,
+                rules_source,
             }
             .into_response()
         }
@@ -166,6 +219,7 @@ pub async fn controller_network_detail(
                     .cloned()
                     .unwrap_or_default();
                 let member_count = members.len();
+                let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
                 let pools = nw.ip_assignment_pools.clone();
                 let routes = nw.routes.clone();
                 let rows = enrich_members(&members, &member_names, nw);
@@ -176,6 +230,8 @@ pub async fn controller_network_detail(
                     network: nw.clone(),
                     rows,
                     member_count,
+                    authorized_count,
+                    rules_source,
                 }
                 .into_response()
             } else {
@@ -206,22 +262,45 @@ pub async fn create_network(State(state): State<AppState>) -> Response {
         Some(c) => Some(c.create_controller_network(&node_address).await),
         None => None,
     };
-    drop(client);
 
     match result {
         Some(Ok(network)) => {
-            state.notify_poller();
             let nwid = network.display_id().to_string();
+
+            // Apply default rules to the new network
+            if let Some(c) = client.as_ref() {
+                let default_rules = default_compiled_rules();
+                let _ = c
+                    .update_controller_network(
+                        &nwid,
+                        serde_json::json!({
+                            "rules": default_rules
+                        }),
+                    )
+                    .await;
+            }
+            drop(client);
+
+            // Save default DSL source locally
+            let _ = state
+                .save_rules_source(&nwid, DEFAULT_RULES_SOURCE)
+                .await;
+
+            state.notify_poller();
             Redirect::to(&format!("/controller/{}", nwid)).into_response()
         }
         Some(Err(e)) => {
+            drop(client);
             (StatusCode::BAD_GATEWAY, format!("Failed to create: {}", e)).into_response()
         }
-        None => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            "ZeroTier client not configured",
-        )
-            .into_response(),
+        None => {
+            drop(client);
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ZeroTier client not configured",
+            )
+                .into_response()
+        }
     }
 }
 
@@ -239,6 +318,8 @@ pub async fn delete_network(
     match result {
         Some(Ok(_)) => {
             state.notify_poller();
+            // Brief delay to let poller update cached state before redirect
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             Redirect::to("/").into_response()
         }
         Some(Err(e)) => {
@@ -848,8 +929,9 @@ pub async fn add_member(
     };
 
     let member_count = fresh_members.len();
+    let authorized_count = fresh_members.iter().filter(|m| m.is_authorized()).count();
     let rows = enrich_members(&fresh_members, &member_names, &network);
-    CtrlMemberListPartial { nwid, rows, member_count }.into_response()
+    CtrlMemberListPartial { nwid, rows, member_count, authorized_count }.into_response()
 }
 
 // ---- Handlers: Member Modal ----
@@ -989,6 +1071,66 @@ pub async fn ctrl_member_list_partial(
     drop(config);
 
     let member_count = members.len();
+    let authorized_count = members.iter().filter(|m| m.is_authorized()).count();
     let rows = enrich_members(&members, &member_names, &network);
-    CtrlMemberListPartial { nwid, rows, member_count }
+    CtrlMemberListPartial { nwid, rows, member_count, authorized_count }
+}
+
+// ---- Handlers: Flow Rules ----
+
+#[derive(Deserialize)]
+pub struct UpdateFlowRulesForm {
+    pub rules_source: String,
+    pub compiled_rules: String,
+}
+
+#[derive(Deserialize)]
+struct CompiledRules {
+    rules: Vec<serde_json::Value>,
+    #[serde(default)]
+    capabilities: Vec<serde_json::Value>,
+    #[serde(default)]
+    tags: Vec<serde_json::Value>,
+}
+
+pub async fn update_flow_rules(
+    State(state): State<AppState>,
+    Path(nwid): Path<String>,
+    Form(form): Form<UpdateFlowRulesForm>,
+) -> Response {
+    // Parse the compiled rules JSON from the hidden field
+    let compiled: CompiledRules = match serde_json::from_str(&form.compiled_rules) {
+        Ok(r) => r,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, format!("Invalid compiled rules: {}", e)).into_response();
+        }
+    };
+
+    // Build the body with rules, capabilities, and tags
+    let body = serde_json::json!({
+        "rules": compiled.rules,
+        "capabilities": compiled.capabilities,
+        "tags": compiled.tags,
+    });
+
+    let client = state.zt_client.read().await;
+    let result = match client.as_ref() {
+        Some(c) => Some(c.update_controller_network(&nwid, body).await),
+        None => None,
+    };
+    drop(client);
+
+    match result {
+        Some(Ok(network)) => {
+            state.notify_poller();
+            // Save the DSL source locally (ZT API only stores compiled JSON)
+            if let Err(e) = state.save_rules_source(&nwid, &form.rules_source).await {
+                tracing::warn!("Failed to save rules source: {}", e);
+            }
+            let rules_source = form.rules_source;
+            CtrlFlowRulesPartial { nwid, network, rules_source }.into_response()
+        }
+        Some(Err(e)) => (StatusCode::BAD_GATEWAY, format!("Failed: {}", e)).into_response(),
+        None => (StatusCode::SERVICE_UNAVAILABLE, "Not configured").into_response(),
+    }
 }

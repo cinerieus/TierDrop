@@ -3,16 +3,29 @@
 {% block title %}TierDrop - {{ network.display_name() }}{% endblock %}
 
 {% block content %}
-<a href="/" class="back-link">&larr; Dashboard</a>
+<div class="flex items-center justify-between mb-2">
+    <a href="/" class="back-link" style="margin-bottom:0">&larr; Dashboard</a>
+    <button type="button" class="btn btn-ghost btn-sm qr-join-btn" data-nwid="{{ network.display_id() }}" title="QR Join" style="color: var(--orange);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+            <rect x="14" y="14" width="3" height="3"></rect>
+            <rect x="18" y="14" width="3" height="3"></rect>
+            <rect x="14" y="18" width="3" height="3"></rect>
+            <rect x="18" y="18" width="3" height="3"></rect>
+        </svg>
+    </button>
+</div>
 
 <div class="page-header">
     <div class="flex items-center justify-between">
         <div>
-            <h2>{{ network.display_name() }}</h2>
+            <h2 id="network-name">{{ network.display_name() }}</h2>
             <p class="mono">{{ network.display_id() }}</p>
         </div>
         <div class="flex gap-2">
-            <span class="badge {{ network.type_class() }}">{{ network.display_type() }}</span>
+            <span id="network-type-badge" class="badge {{ network.type_class() }}">{{ network.display_type() }}</span>
             <button
                 class="btn btn-danger btn-sm"
                 hx-delete="/controller/{{ network.display_id() }}"
@@ -25,23 +38,61 @@
     </div>
 </div>
 
-<!-- Settings Section -->
-<div class="card" id="network-settings" style="position:relative">
-    {% include "controller/partials/network_settings.html" %}
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('members')">Members</button>
+    <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+    <button class="tab-btn" onclick="switchTab('flow-rules')">Flow Rules</button>
 </div>
 
-<!-- IP Assignment Section -->
-<div class="card" id="ip-assignment">
-    {% include "controller/partials/ip_pools.html" %}
-</div>
+<!-- Members Tab -->
+<div id="tab-members" class="tab-content active">
+    <!-- Stats -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-label">Total Members</div>
+            <div class="stat-value" id="stat-total">{{ member_count }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Authorized</div>
+            <div class="stat-value" id="stat-authorized">{{ authorized_count }}</div>
+        </div>
+    </div>
 
-<!-- Members Section -->
-<div class="card">
-    <div id="member-list"
-         hx-get="/controller/partials/{{ network.display_id() }}/members"
-         hx-trigger="sse:ctrl-members-changed, member-updated from:body, every 5s"
-         hx-swap="innerHTML">
-        {% include "controller/partials/member_list.html" %}
+    <!-- Members List -->
+    <div class="card">
+        <div id="member-list"
+             hx-get="/controller/partials/{{ network.display_id() }}/members"
+             hx-trigger="sse:ctrl-members-changed, member-updated from:body, every 5s"
+             hx-swap="innerHTML">
+            {% include "controller/partials/member_list.html" %}
+        </div>
     </div>
 </div>
+
+<!-- Settings Tab -->
+<div id="tab-settings" class="tab-content">
+    <div class="card" id="network-settings" style="position:relative">
+        {% include "controller/partials/network_settings.html" %}
+    </div>
+    <div class="card" id="ip-assignment">
+        {% include "controller/partials/ip_pools.html" %}
+    </div>
+</div>
+
+<!-- Flow Rules Tab -->
+<div id="tab-flow-rules" class="tab-content">
+    <div class="card" id="flow-rules-container">
+        {% include "controller/partials/flow_rules.html" %}
+    </div>
+</div>
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+</script>
 {% endblock %}
