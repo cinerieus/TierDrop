@@ -64,7 +64,8 @@ TierDrop is a self-hosted web UI for managing ZeroTier networks through your loc
 
 ### Prerequisites
 
-- **ZeroTier One** — Installed and running
+- **Native install**: ZeroTier One installed and running
+- **Docker install**: Docker with `/dev/net/tun` support; ZeroTier One is included in the image
 
 ### Download
 
@@ -152,6 +153,26 @@ sudo systemctl enable --now tierdrop
 
 The Docker image includes ZeroTier One, so everything runs in a single container.
 
+**Using the published GHCR image:**
+
+```bash
+docker run -d \
+  --name tierdrop \
+  --cap-add NET_ADMIN \
+  --device /dev/net/tun \
+  -p 8000:8000 \
+  -p 9993:9993/udp \
+  -v zerotier-data:/var/lib/zerotier-one \
+  -v tierdrop-data:/root/.local/share/tierdrop \
+  ghcr.io/cinerieus/tierdrop:latest
+```
+
+Versioned images are also published, for example:
+
+```bash
+docker pull ghcr.io/cinerieus/tierdrop:1.2.0
+```
+
 **Using Docker Compose (recommended):**
 
 ```bash
@@ -190,6 +211,7 @@ The token is printed on startup — use it in the TierDrop setup wizard at `http
 - Port `8000` is the TierDrop web UI
 - Port `9993/udp` is for ZeroTier peer connections
 - Volumes persist your ZeroTier identity and TierDrop config
+- Container images are published to GitHub Container Registry on branch pushes and version tags
 
 ## Technical Details
 
