@@ -2,8 +2,8 @@ name: Build and Publish TierDrop Container
 
 on:
   push:
-    branches: ["*"]
-    tags: ["*"]
+    branches: ["**"]
+    tags: ["v*.*.*"]
 
 jobs:
   build-and-push:
@@ -42,7 +42,7 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=match,pattern=v\d.\d.\d,value=latest
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
