@@ -175,8 +175,33 @@ docker pull ghcr.io/cinerieus/tierdrop:1.2.0
 
 **Using Docker Compose (recommended):**
 
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  tierdrop:
+    image: ghcr.io/cinerieus/tierdrop:latest
+    container_name: tierdrop
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "8000:8000"
+      - "9993:9993/udp"
+    volumes:
+      - zerotier-data:/var/lib/zerotier-one
+      - tierdrop-data:/root/.local/share/tierdrop
+    restart: unless-stopped
+
+volumes:
+  zerotier-data:
+  tierdrop-data:
+```
+
+Then start it:
+
 ```bash
-cd docker
 docker compose up -d
 ```
 
